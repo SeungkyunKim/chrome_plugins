@@ -1,4 +1,4 @@
-// This file contains the background script for the extension. It manages events and can handle tasks that require long-running processes.
+// This file contains the background script for the extension. It manages events and can handle long-running processes.
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -10,22 +10,50 @@ chrome.runtime.onInstalled.addListener(() => {
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
 
-async function hasOffscreenDocument() {
+// Check if the current browser supports offscreen documents
+const supportsOffscreenDocuments = typeof chrome.runtime.getContexts === 'function' && typeof chrome.offscreen === 'object';
+
+async function setupOffscreenDocument(path) {
+  if (!supportsOffscreenDocuments) {
+    // Safari fallback implementation
+    console.log('Running in Safari - using alternative implementation');
+    return false;
+  }
+  
+  // Chrome implementation using offscreen documents
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+    documentUrls: [chrome.runtime.getURL(path)]
   });
-  return existingContexts.length > 0;
+  
+  if (existingContexts.length > 0) {
+    return true; // Offscreen document already exists
+  }
+  
+  await chrome.offscreen.createDocument({
+    url: path,
+    reasons: ['CLIPBOARD', 'AUDIO_PLAYBACK'], // adjust based on your needs
+    justification: 'Needed for processing data'
+  });
+  
+  return true;
 }
 
-async function setupOffscreenDocument() {
-  if (!(await hasOffscreenDocument())) {
-    await chrome.offscreen.createDocument({
-      url: OFFSCREEN_DOCUMENT_PATH,
-      reasons: [chrome.offscreen.Reason.DOM_PARSER],
-      justification: 'Parse HTML string to extract links',
-    });
+// Helper function to parse HTML in Safari (since we can't use offscreen documents)
+function parseHtmlForLinks(htmlString) {
+  // Use regex pattern to extract links instead of DOMParser
+  const linkRegex = /<a\s+(?:[^>]*?\s+)?href=(["'])(https?:\/\/[^"']+)\1/gi;
+  const links = [];
+  let match;
+  
+  while ((match = linkRegex.exec(htmlString)) !== null) {
+    const url = match[2];
+    if (url && !links.includes(url)) {
+      links.push(url);
+    }
   }
+  
+  return links;
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -48,22 +76,60 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }
         
         const htmlString = await response.text();
-        await setupOffscreenDocument();
         
-        const offscreenResponse = await chrome.runtime.sendMessage({
-          action: 'parseHtmlForLinks',
-          htmlString: htmlString
+        let links = [];
+        
+        if (supportsOffscreenDocuments) {
+          // Chrome path using offscreen documents
+          await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH);
+          
+          const offscreenResponse = await chrome.runtime.sendMessage({
+            action: 'parseHtmlForLinks',
+            htmlString: htmlString
+          });
+          
+          if (offscreenResponse && offscreenResponse.links) {
+            links = offscreenResponse.links;
+          } else {
+            throw new Error('Failed to parse HTML via offscreen document');
+          }
+        } else {
+          // Safari path doing parsing directly in the background script
+          // Inject a content script to do the parsing
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: function(htmlString) {
+              // This runs in content script context where DOMParser is available
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(htmlString, 'text/html');
+              const linkElements = doc.querySelectorAll('a');
+              const links = [];
+              
+              linkElements.forEach(link => {
+                if (link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
+                  links.push(link.href);
+                }
+              });
+              
+              return links;
+            },
+            args: [htmlString]
+          }).then(injectionResults => {
+            const links = injectionResults[0].result;
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showHoverBoxWithLinks',
+              links: links,
+              sourceUrl: targetUrl
+            });
+          });
+        }
+        
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showHoverBoxWithLinks',
+          links: links,
+          sourceUrl: targetUrl
         });
         
-        if (offscreenResponse && offscreenResponse.links) {
-          chrome.tabs.sendMessage(tab.id, {
-            action: 'showHoverBoxWithLinks',
-            links: offscreenResponse.links,
-            sourceUrl: targetUrl
-          });
-        } else {
-          throw new Error('Failed to parse HTML');
-        }
       } catch (fetchError) {
         // If the fetch fails, show an error with a fallback option
         chrome.tabs.sendMessage(tab.id, {

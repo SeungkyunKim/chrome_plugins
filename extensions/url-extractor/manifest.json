@@ -2,11 +2,20 @@
   "manifest_version": 3,
   "name": "Link Extractor",
   "version": "1.0",
+  "icons": {
+    "128": "icons/128.png",
+    "256": "icons/256.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "64": "icons/64.png"
+  },
   "permissions": [
     "activeTab",
     "scripting",
     "contextMenus",
-    "storage",
+    "storage"
+  ],
+  "optional_permissions": [
     "offscreen"
   ],
   "action": {
