@@ -8,7 +8,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const linkElements = doc.querySelectorAll('a');
       const extractedLinks = [];
       linkElements.forEach(link => {
-        if (link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
+       if (link.href && (link.href.startsWith('http://') || link.href.startsWith('https://'))) {
           extractedLinks.push(link.href);
         }
       });

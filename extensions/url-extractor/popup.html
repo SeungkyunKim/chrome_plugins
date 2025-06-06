@@ -1,17 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Page Links</title>
+    <title>Domain Manager</title>
     <style>
-        body { width: 350px; min-height: 100px; font-family: Arial, sans-serif; padding: 10px; }
-        #link-container a { display: block; margin-bottom: 5px; word-break: break-all; }
-        #link-container p { white-space: pre-wrap; word-wrap: break-word; }
+        body {
+            width: 350px;
+            min-height: 100px;
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            margin: 0;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .add-domain-form {
+            display: flex;
+            margin: 15px 0;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #new-domain {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        #add-domain-btn {
+            padding: 8px 12px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-left: 8px;
+            cursor: pointer;
+        }
+
+        .domains-header {
+            margin: 15px 0 10px 0;
+        }
+
+        .domains-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .domain-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .domain-text {
+            flex-grow: 1;
+            font-size: 14px;
+            word-break: break-all;
+            padding-right: 10px;
+        }
+
+        .remove-domain-btn {
+            flex-shrink: 0;
+            background: none;
+            border: 1px solid #d93025;
+            color: #d93025;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            min-width: 60px;
+        }
+
+        .remove-domain-btn:hover {
+            background: #d93025;
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <h3>Extracted Links:</h3>
-    <div id="link-container">
-        <p>Loading links...</p>
+    <div id="domain-container">
+        <!-- Content will be populated by JavaScript -->
     </div>
     <script src="scripts/popup.js"></script>
 </body>
