@@ -15,6 +15,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 let hoverBox = null;
 let linkListContainer = null;
 
+// Add these variables to track mouse position
+let lastClickX = 0;
+let lastClickY = 0;
+
+// Add event listener to track right-click position
+document.addEventListener('mousedown', function(e) {
+    if (e.button === 2) { // Right click
+        lastClickX = e.clientX;
+        lastClickY = e.clientY;
+    }
+});
+
+// Modify createHoverBox function
 function createHoverBox() {
     if (hoverBox) {
         document.body.removeChild(hoverBox); // Remove old one if exists
@@ -23,20 +36,38 @@ function createHoverBox() {
     hoverBox = document.createElement('div');
     hoverBox.id = 'link-extractor-hover-box';
     hoverBox.style.position = 'fixed';
-    hoverBox.style.top = '20px';
-    hoverBox.style.right = '20px';
+    
+    // Position near the cursor, but ensure it stays in viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const boxWidth = 350; // Same as width below
+    const boxHeight = 400; // Maximum height defined below
+    
+    // Calculate position - keep box within viewport
+    let leftPos = Math.min(lastClickX, viewportWidth - boxWidth - 20);
+    let topPos = Math.min(lastClickY, viewportHeight - 100);
+    
+    // Ensure minimum distance from edges
+    leftPos = Math.max(10, leftPos);
+    topPos = Math.max(10, topPos);
+    
+    hoverBox.style.left = `${leftPos}px`;
+    hoverBox.style.top = `${topPos}px`;
+    
+    // Other styles
     hoverBox.style.width = '350px';
     hoverBox.style.maxHeight = '400px';
     hoverBox.style.overflowY = 'auto';
     hoverBox.style.backgroundColor = 'white';
     hoverBox.style.border = '1px solid #ccc';
     hoverBox.style.borderRadius = '5px';
-    hoverBox.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    hoverBox.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
     hoverBox.style.zIndex = '999999'; // Ensure it's on top
     hoverBox.style.padding = '15px';
     hoverBox.style.fontFamily = 'Arial, sans-serif';
     hoverBox.style.fontSize = '14px';
     hoverBox.style.color = '#333';
+    hoverBox.style.textAlign = 'left'; // Explicitly align content to left
 
     const title = document.createElement('h4');
     title.textContent = 'Extracted Links';
@@ -44,6 +75,7 @@ function createHoverBox() {
     title.style.marginBottom = '10px';
     title.style.borderBottom = '1px solid #eee';
     title.style.paddingBottom = '5px';
+    title.style.textAlign = 'left';
 
     const closeButton = document.createElement('button');
     closeButton.textContent = '×';
@@ -55,16 +87,80 @@ function createHoverBox() {
     closeButton.style.fontSize = '20px';
     closeButton.style.cursor = 'pointer';
     closeButton.style.color = '#aaa';
+    closeButton.style.width = '30px';
+    closeButton.style.height = '30px';
+    closeButton.style.lineHeight = '20px';
+    closeButton.style.borderRadius = '50%';
+    closeButton.style.textAlign = 'center';
+    closeButton.onmouseover = () => {
+        closeButton.style.color = '#333';
+        closeButton.style.backgroundColor = '#f2f2f2';
+    };
+    closeButton.onmouseout = () => {
+        closeButton.style.color = '#aaa';
+        closeButton.style.backgroundColor = 'transparent';
+    };
     closeButton.onclick = () => {
         if (hoverBox) hoverBox.style.display = 'none';
     };
 
     linkListContainer = document.createElement('div');
+    linkListContainer.style.textAlign = 'left'; // Ensure links are left-aligned
 
     hoverBox.appendChild(title);
     hoverBox.appendChild(closeButton);
     hoverBox.appendChild(linkListContainer);
     document.body.appendChild(hoverBox);
+    
+    // Add draggable functionality
+    makeDraggable(hoverBox, title);
+}
+
+// Add draggable functionality to the hover box
+function makeDraggable(element, dragHandle) {
+    let offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    
+    dragHandle.style.cursor = 'move';
+    
+    dragHandle.addEventListener('mousedown', startDrag);
+    
+    function startDrag(e) {
+        e.preventDefault();
+        isDragging = true;
+        offsetX = e.clientX - element.getBoundingClientRect().left;
+        offsetY = e.clientY - element.getBoundingClientRect().top;
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDrag);
+    }
+    
+    function drag(e) {
+        if (!isDragging) return;
+        
+        const x = e.clientX - offsetX;
+        const y = e.clientY - offsetY;
+        
+        element.style.left = `${Math.max(0, Math.min(window.innerWidth - element.offsetWidth, x))}px`;
+        element.style.top = `${Math.max(0, Math.min(window.innerHeight - element.offsetHeight, y))}px`;
+    }
+    
+    function stopDrag() {
+        isDragging = false;
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', stopDrag);
+    }
+}
+
+// Add this helper function to extract domain from URL
+function getDomain(url) {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.hostname;
+    } catch (e) {
+        // If URL parsing fails, return the original
+        return url;
+    }
 }
 
 function displayInHoverBox(links, error, sourceUrl = null) {
@@ -76,7 +172,7 @@ function displayInHoverBox(links, error, sourceUrl = null) {
 
     if (sourceUrl) {
         const sourceElement = document.createElement('p');
-        sourceElement.textContent = `Source: ${sourceUrl}`;
+        sourceElement.textContent = `Source: ${getDomain(sourceUrl)}`;
         sourceElement.style.fontSize = '12px';
         sourceElement.style.color = '#666';
         sourceElement.style.marginBottom = '10px';
@@ -97,17 +193,35 @@ function displayInHoverBox(links, error, sourceUrl = null) {
         linkListContainer.appendChild(noLinksElement);
         return;
     }
+    
+    // Add count info
+    const countElement = document.createElement('p');
+    countElement.textContent = `Found ${links.length} links`;
+    countElement.style.fontSize = '12px';
+    countElement.style.color = '#666';
+    countElement.style.marginBottom = '10px';
+    linkListContainer.appendChild(countElement);
 
-    links.forEach(link => {
+    // Create links with index and domain only
+    links.forEach((link, index) => {
         const linkElement = document.createElement('a');
         linkElement.href = link;
-        linkElement.textContent = link;
+        
+        // Display format: [index] domain.com
+        const domain = getDomain(link);
+        linkElement.textContent = `[${index + 1}] ${domain}`;
+        
+        // Set the full URL as title for hover tooltip
+        linkElement.title = link;
+        
         linkElement.target = '_blank';
         linkElement.style.display = 'block';
         linkElement.style.marginBottom = '5px';
         linkElement.style.wordBreak = 'break-all';
         linkElement.style.color = '#007bff';
         linkElement.style.textDecoration = 'none';
+        linkElement.style.textAlign = 'left';
+        linkElement.style.paddingRight = '10px'; 
         linkElement.onmouseover = () => linkElement.style.textDecoration = 'underline';
         linkElement.onmouseout = () => linkElement.style.textDecoration = 'none';
         linkListContainer.appendChild(linkElement);

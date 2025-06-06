@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "My Link Extractor",
+  "name": "Link Extractor",
   "version": "1.0",
   "permissions": [
     "activeTab",
@@ -10,8 +10,7 @@
     "offscreen"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": "icons/icon.png"
+    "default_popup": "popup.html"
   },
   "background": {
     "service_worker": "scripts/background.js"
@@ -21,10 +20,5 @@
       "matches": ["<all_urls>"],
       "js": ["scripts/content.js"]
     }
-  ],
-  "offscreen": {
-    "reasons": ["DOM_PARSER"],
-    "justification": "Parse HTML content to extract links.",
-    "document_url": "offscreen.html"
-  }
+  ]
 }
