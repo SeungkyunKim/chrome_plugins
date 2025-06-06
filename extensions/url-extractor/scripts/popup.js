@@ -152,8 +152,18 @@ function setupDomainManagement(container) {
 
 // Function to add a new domain to the permitted list
 function addDomain(domain) {
-    // Make sure it's a valid domain format
-    if (!domain.match(/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/)) {
+    // First, try to convert URLs to domain names
+    try {
+        if (domain.startsWith('http://') || domain.startsWith('https://')) {
+            const url = new URL(domain);
+            domain = url.hostname;
+        }
+    } catch (e) {
+        // Not a URL, continue with original input
+    }
+
+    // Make sure it's a domain with at least one dot
+    if (!domain.includes('.') || domain === '.' || domain.endsWith('.') || domain.startsWith('.')) {
         alert('Please enter a valid domain (e.g., example.com)');
         return;
     }
@@ -172,20 +182,24 @@ function addDomain(domain) {
 
         // Save the updated list
         chrome.storage.local.set({ 'permittedDomains': permittedDomains }, () => {
-            // Request permission for this domain
-            const hostPattern = `*://*.${domain}/*`;
+            // Display success and reload list
+            console.log(`Domain ${domain} added successfully`);
+            loadDomainsList();
 
-            chrome.permissions.request({
-                origins: [hostPattern]
-            }, (granted) => {
-                if (granted) {
-                    loadDomainsList();
-                } else {
-                    // If permission was denied, remove from our list
-                    removeDomain(domain);
-                    alert('Permission denied for this domain. It has not been added.');
-                }
-            });
+            // Optional: Request permission for this domain (may not be necessary)
+            try {
+                const hostPattern = `*://*.${domain}/*`;
+                chrome.permissions.request({
+                    origins: [hostPattern]
+                }, (granted) => {
+                    if (!granted) {
+                        console.log('Browser permission not granted, but domain is still in our allowed list');
+                    }
+                });
+            } catch (err) {
+                console.error('Error requesting permission:', err);
+                // Continue anyway since we've already saved to our list
+            }
         });
     });
 }
