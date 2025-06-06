@@ -17,9 +17,6 @@
     "storage",
     "tabs"
   ],
-  "optional_permissions": [
-    "offscreen"
-  ],
   "action": {
     "default_popup": "popup.html"
   },
