@@ -223,53 +223,30 @@ function removeDomain(domain) {
     });
 }
 
-// Initial setup - executes every time the background script runs
-async function initializeExtension() {
-  console.log('Initializing Link Extractor extension');
-  
-  // Create context menu
-  try {
-    await chrome.contextMenus.create({
+// Create context menu once during installation
+chrome.runtime.onInstalled.addListener(() => {
+  // Remove any existing items first to prevent duplicates
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
       id: "extractLinksFromTargetPage",
       title: "Show links from this hyperlink's target page",
       contexts: ["link"]
     });
-  } catch (error) {
-    // Menu might already exist, that's fine
-    console.log('Context menu setup:', error.message);
-  }
-  
-  // Initial check for current tab
-  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-    if (tabs.length > 0) {
-      updateContextMenuForTab(tabs[0].id);
-    }
   });
-}
-
-// Initialize on install/update
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Extension installed or updated');
-  initializeExtension();
 });
 
-// Initialize on startup
-initializeExtension();
-
-// Function to check if a domain is permitted - with improved reliability
-async function isDomainPermitted(domain) {
+// Function to check if a domain is permitted - must be in background.js
+function isDomainPermitted(domain) {
   return new Promise((resolve) => {
     chrome.storage.local.get('permittedDomains', (result) => {
       const permittedDomains = result.permittedDomains || [];
-      console.log('Checking domain permission for:', domain);
-      console.log('Permitted domains:', permittedDomains);
-      
+
       // Check if the exact domain is in the list
       if (permittedDomains.includes(domain)) {
         resolve(true);
         return;
       }
-      
+
       // Check if a parent domain is in the list
       const domainParts = domain.split('.');
       for (let i = 1; i < domainParts.length - 1; i++) {
@@ -279,63 +256,48 @@ async function isDomainPermitted(domain) {
           return;
         }
       }
-      
+
       resolve(false);
     });
   });
 }
 
-// Update the context menu based on the current tab's domain
-async function updateContextMenuForTab(tabId) {
-  try {
-    // Get the current tab information
-    const tab = await chrome.tabs.get(tabId);
-    
-    if (!tab.url || !tab.url.startsWith('http')) {
-      // Not a webpage - disable context menu
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: false,
-        title: "Not available on this page"
-      });
-      return;
-    }
-    
-    // Get the domain of the current tab
-    const url = new URL(tab.url);
-    const domain = url.hostname;
-    
-    // Check if the domain is permitted
-    const isPermitted = await isDomainPermitted(domain);
-    console.log(`Domain ${domain} is ${isPermitted ? 'permitted' : 'not permitted'}`);
-    
-    // Update context menu state
-    if (isPermitted) {
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: true,
-        title: "Show links from this hyperlink's target page"
-      });
-    } else {
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: false,
-        title: "Current site not in permitted domains"
-      });
-    }
-  } catch (error) {
-    console.error("Error updating context menu:", error);
-    // Ensure menu exists even if there's an error
+// When context menu is clicked
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "extractLinksFromTargetPage" && info.linkUrl) {
     try {
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: false,
-        title: "Error checking domain permissions"
+      // Parse the URL to get the host
+      const url = new URL(info.linkUrl);
+      const hostname = url.hostname;
+
+      // Check if this domain is permitted
+      const isPermitted = await isDomainPermitted(hostname);
+
+      // First inject content script into the active tab
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["scripts/content.js"]
       });
-    } catch (e) {
-      // If menu doesn't exist yet, create it
-      await chrome.contextMenus.create({
-        id: "extractLinksFromTargetPage",
-        title: "Show links from this hyperlink's target page",
-        contexts: ["link"],
-        enabled: false
+
+      if (isPermitted) {
+        // Domain is permitted, proceed with extraction
+        fetchAndProcessLinks(info.linkUrl, tab.id);
+      } else {
+        // Domain is not permitted, show notification
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showMessage',
+          message: `Domain "${hostname}" is not in your permitted list. Add it from the extension popup.`,
+          type: 'warning'
+        });
+      }
+    } catch (error) {
+      console.error("Error in context menu handler:", error);
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'showMessage',
+        message: `Error: ${error.message}`,
+        type: 'error'
       });
     }
   }
-}
+});
+
