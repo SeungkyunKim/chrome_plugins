@@ -2,69 +2,81 @@
 if (typeof window.linkExtractorInitialized === 'undefined') {
   window.linkExtractorInitialized = true;
 
-  // Put all variable declarations inside this guard
-  window.hoverBox = null;
-  window.linkListContainer = null;
-  window.lastClickX = 0;
-  window.lastClickY = 0;
-  window.mouseX = 0;
-  window.mouseY = 0;
+  // Declare all global state variables for the extension on the window object
+  window.extHoverBox = null; // Renamed to avoid any potential global conflicts, though 'hoverBox' on window was specific.
+  window.extLinkListContainer = null;
+  window.extLastClickX = 0;
+  window.extLastClickY = 0;
+  // window.extMouseX = 0; // mouseX and mouseY are not used in createHoverBox, can be removed if not used elsewhere
+  // window.extMouseY = 0;
 
-  // Update mouse position on mouse move
-  document.addEventListener('mousemove', (e) => {
-    window.mouseX = e.clientX;
-    window.mouseY = e.clientY;
-  });
+  // Update mouse position on mouse move - only if needed for positioning.
+  // document.addEventListener('mousemove', (e) => {
+  //   window.extMouseX = e.clientX;
+  //   window.extMouseY = e.clientY;
+  // });
 
   // Add event listener to track right-click position
   document.addEventListener('mousedown', function(e) {
     if (e.button === 2) { // Right click
-      window.lastClickX = e.clientX;
-      window.lastClickY = e.clientY;
+      window.extLastClickX = e.clientX;
+      window.extLastClickY = e.clientY;
     }
   });
 
-  // Modify createHoverBox function
-  window.createHoverBox = function() {
-    if (window.hoverBox) {
-      document.body.removeChild(window.hoverBox); // Remove old one if exists
+  // Function to create the hover box
+  window.createExtensionHoverBox = function() {
+    // If an old hoverBox exists, remove it from the DOM
+    if (window.extHoverBox) {
+      if (window.extHoverBox.parentNode) {
+        window.extHoverBox.parentNode.removeChild(window.extHoverBox);
+      }
+      window.extHoverBox = null; // Clear the reference
     }
 
-    window.hoverBox = document.createElement('div');
-    window.hoverBox.id = 'link-extractor-hover-box';
-    window.hoverBox.style.position = 'fixed';
+    window.extHoverBox = document.createElement('div');
+    window.extHoverBox.id = 'link-extractor-hover-box';
+    window.extHoverBox.style.position = 'fixed';
 
-    // Position near the cursor, but ensure it stays in viewport
-    const viewportWidth = window.innerWidth;
+    const viewportWidth  = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const boxWidth = 350; // Same as width below
-    const boxHeight = 400; // Maximum height defined below
+    const boxWidth       = 350;
+    const boxHeight      = 400; // max-height
 
-    // Calculate position - keep box within viewport
-    let leftPos = Math.min(window.lastClickX, viewportWidth - boxWidth - 20);
-    let topPos = Math.min(window.lastClickY, viewportHeight - 100);
+    let leftPos, topPos;
 
-    // Ensure minimum distance from edges
+    // if no right-click coords recorded yet (still 0,0), default to top-right
+    if (window.extLastClickX === 0 && window.extLastClickY === 0) {
+      leftPos = viewportWidth - boxWidth - 20;  // 20px from right edge
+      topPos  = 20;                             // 20px from top
+    } else {
+      // position at last right-click
+      leftPos = window.extLastClickX;
+      topPos  = window.extLastClickY;
+    }
+
+    // keep inside viewport with 10px margin
+    leftPos = Math.min(leftPos, viewportWidth  - boxWidth  - 10);
+    topPos  = Math.min(topPos,  viewportHeight - boxHeight - 10);
     leftPos = Math.max(10, leftPos);
-    topPos = Math.max(10, topPos);
+    topPos  = Math.max(10, topPos);
 
-    window.hoverBox.style.left = `${leftPos}px`;
-    window.hoverBox.style.top = `${topPos}px`;
+    window.extHoverBox.style.left = `${leftPos}px`;
+    window.extHoverBox.style.top  = `${topPos}px`;
 
-    // Other styles
-    window.hoverBox.style.width = '350px';
-    window.hoverBox.style.maxHeight = '400px';
-    window.hoverBox.style.overflowY = 'auto';
-    window.hoverBox.style.backgroundColor = 'white';
-    window.hoverBox.style.border = '1px solid #ccc';
-    window.hoverBox.style.borderRadius = '5px';
-    window.hoverBox.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
-    window.hoverBox.style.zIndex = '999999'; // Ensure it's on top
-    window.hoverBox.style.padding = '15px';
-    window.hoverBox.style.fontFamily = 'Arial, sans-serif';
-    window.hoverBox.style.fontSize = '14px';
-    window.hoverBox.style.color = '#333';
-    window.hoverBox.style.textAlign = 'left'; // Explicitly align content to left
+    window.extHoverBox.style.width = `${boxWidth}px`;
+    window.extHoverBox.style.maxHeight = `${boxHeight}px`;
+    window.extHoverBox.style.overflowY = 'auto';
+    window.extHoverBox.style.backgroundColor = 'white';
+    window.extHoverBox.style.border = '1px solid #ccc';
+    window.extHoverBox.style.borderRadius = '5px';
+    window.extHoverBox.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+    window.extHoverBox.style.zIndex = '2147483647'; // Max z-index
+    window.extHoverBox.style.padding = '15px';
+    window.extHoverBox.style.fontFamily = 'Arial, sans-serif';
+    window.extHoverBox.style.fontSize = '14px';
+    window.extHoverBox.style.color = '#333';
+    window.extHoverBox.style.textAlign = 'left';
 
     const title = document.createElement('h4');
     title.textContent = 'Extracted Links';
@@ -81,14 +93,15 @@ if (typeof window.linkExtractorInitialized === 'undefined') {
     closeButton.style.right = '10px';
     closeButton.style.background = 'transparent';
     closeButton.style.border = 'none';
-    closeButton.style.fontSize = '20px';
+    closeButton.style.fontSize = '24px'; // Slightly larger for easier clicking
     closeButton.style.cursor = 'pointer';
     closeButton.style.color = '#aaa';
     closeButton.style.width = '30px';
     closeButton.style.height = '30px';
-    closeButton.style.lineHeight = '20px';
+    closeButton.style.lineHeight = '30px'; // Center the 'x'
     closeButton.style.borderRadius = '50%';
     closeButton.style.textAlign = 'center';
+    closeButton.style.padding = '0';
     closeButton.onmouseover = () => {
         closeButton.style.color = '#333';
         closeButton.style.backgroundColor = '#f2f2f2';
@@ -98,482 +111,211 @@ if (typeof window.linkExtractorInitialized === 'undefined') {
         closeButton.style.backgroundColor = 'transparent';
     };
     closeButton.onclick = () => {
-        if (window.hoverBox) window.hoverBox.style.display = 'none';
+        if (window.extHoverBox) window.extHoverBox.style.display = 'none';
     };
 
-    window.linkListContainer = document.createElement('div');
-    window.linkListContainer.style.textAlign = 'left'; // Ensure links are left-aligned
+    window.extLinkListContainer = document.createElement('div');
+    window.extLinkListContainer.style.textAlign = 'left';
 
-    window.hoverBox.appendChild(title);
-    window.hoverBox.appendChild(closeButton);
-    window.hoverBox.appendChild(window.linkListContainer);
-    document.body.appendChild(window.hoverBox);
+    window.extHoverBox.appendChild(title);
+    window.extHoverBox.appendChild(closeButton);
+    window.extHoverBox.appendChild(window.extLinkListContainer);
+    document.body.appendChild(window.extHoverBox);
 
-    // Add draggable functionality
-    makeDraggable(window.hoverBox, title);
-  }
-}
+    makeExtensionDraggable(window.extHoverBox, title);
+  };
 
-// Add draggable functionality to the hover box
-function makeDraggable(element, dragHandle) {
+  // Draggable functionality
+  function makeExtensionDraggable(element, dragHandle) {
     let offsetX = 0, offsetY = 0;
     let isDragging = false;
 
     dragHandle.style.cursor = 'move';
-
     dragHandle.addEventListener('mousedown', startDrag);
 
     function startDrag(e) {
-        e.preventDefault();
-        isDragging = true;
-        offsetX = e.clientX - element.getBoundingClientRect().left;
-        offsetY = e.clientY - element.getBoundingClientRect().top;
-
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
+      e.preventDefault();
+      isDragging = true;
+      offsetX = e.clientX - element.getBoundingClientRect().left;
+      offsetY = e.clientY - element.getBoundingClientRect().top;
+      document.addEventListener('mousemove', drag);
+      document.addEventListener('mouseup', stopDrag);
     }
 
     function drag(e) {
-        if (!isDragging) return;
-
-        const x = e.clientX - offsetX;
-        const y = e.clientY - offsetY;
-
-        element.style.left = `${Math.max(0, Math.min(window.innerWidth - element.offsetWidth, x))}px`;
-        element.style.top = `${Math.max(0, Math.min(window.innerHeight - element.offsetHeight, y))}px`;
+      if (!isDragging) return;
+      const x = e.clientX - offsetX;
+      const y = e.clientY - offsetY;
+      element.style.left = `${Math.max(0, Math.min(window.innerWidth - element.offsetWidth, x))}px`;
+      element.style.top = `${Math.max(0, Math.min(window.innerHeight - element.offsetHeight, y))}px`;
     }
 
     function stopDrag() {
-        isDragging = false;
-        document.removeEventListener('mousemove', drag);
-        document.removeEventListener('mouseup', stopDrag);
+      isDragging = false;
+      document.removeEventListener('mousemove', drag);
+      document.removeEventListener('mouseup', stopDrag);
     }
-}
+  }
 
-// Add this helper function to extract domain from URL
-function getDomain(url) {
+  // Helper function to extract domain from URL
+  function getExtensionDomain(url) {
     try {
-        const urlObj = new URL(url);
-        return urlObj.hostname;
+      const urlObj = new URL(url);
+      return urlObj.hostname;
     } catch (e) {
-        // If URL parsing fails, return the original
-        return url;
+      return url; // Fallback for invalid URLs
     }
-}
+  }
 
-window.displayInHoverBox = function(links, error, sourceUrl = null) {
-    if (!window.hoverBox || window.hoverBox.style.display === 'none') {
-        window.createHoverBox();
-    }
-    window.hoverBox.style.display = 'block';
-    window.linkListContainer.innerHTML = ''; // Clear previous content
+  // Function to display links or messages in the hover box
+  window.displayInExtensionHoverBox = function(links, messageContent, sourceUrl = null, messageType = 'info') {
+    // Always create a new box, ensuring the old one is removed.
+    window.createExtensionHoverBox();
+    // window.extHoverBox.style.display = 'block'; // createExtensionHoverBox already appends it, making it visible.
+    // window.extLinkListContainer.innerHTML = ''; // createExtensionHoverBox provides a fresh container.
 
     if (sourceUrl) {
-        const sourceElement = document.createElement('p');
-        sourceElement.textContent = `Source: ${getDomain(sourceUrl)}`;
-        sourceElement.style.fontSize = '12px';
-        sourceElement.style.color = '#666';
-        sourceElement.style.marginBottom = '10px';
-        window.linkListContainer.appendChild(sourceElement);
+      const sourceElement = document.createElement('p');
+      sourceElement.textContent = `Source: ${getExtensionDomain(sourceUrl)}`;
+      sourceElement.style.fontSize = '12px';
+      sourceElement.style.color = '#666';
+      sourceElement.style.marginBottom = '10px';
+      sourceElement.style.marginTop = '0'; // Adjust if title is present
+      window.extLinkListContainer.appendChild(sourceElement);
     }
 
-    if (error) {
-        const errorElement = document.createElement('p');
-        errorElement.textContent = error;
-        errorElement.style.color = 'red';
-        window.linkListContainer.appendChild(errorElement);
+    if (messageContent) {
+      const messageElement = document.createElement('p');
+      messageElement.textContent = messageContent;
+      if (messageType === 'error') {
+        messageElement.style.color = 'red';
+      } else if (messageType === 'warning') {
+        messageElement.style.color = 'orange';
+      }
+      window.extLinkListContainer.appendChild(messageElement);
+      // If it's a "domain not permitted" message, you might not want the fallback button.
+      // Consider if displayFetchErrorWithFallback is still needed or if its logic should be merged here.
+      if (messageType === 'error' && sourceUrl && messageContent.toLowerCase().includes("http error")) { // Example condition for fallback
+          displayFetchErrorWithFallbackButton(messageContent, sourceUrl); // Simplified fallback
+      }
+      if (messageType === 'warning' && sourceUrl) {
+        // show “Add domain” button
+        const domain = getExtensionDomain(sourceUrl);
+        const addBtn = document.createElement('button');
+        addBtn.textContent = `Add “${domain}” to Permitted Domains`;
+        addBtn.style.marginTop = '10px';
+        addBtn.style.padding = '6px 12px';
+        addBtn.style.backgroundColor = '#4285f4';
+        addBtn.style.color = '#fff';
+        addBtn.style.border = 'none';
+        addBtn.style.borderRadius = '4px';
+        addBtn.style.cursor = 'pointer';
+        addBtn.onclick = () => {
+          // send request to background to add it
+          chrome.runtime.sendMessage(
+            { action: 'addDomain', domain: domain },
+            (response) => {
+              if (response.status === 'success') {
+                addBtn.textContent = 'Domain added ✓';
+                addBtn.onclick = () => {
+                  if (window.extHoverBox) {
+                    window.extHoverBox.style.display = 'none';
+                  }
+                };
+              } else if (response.status === 'exists') {
+                addBtn.textContent = 'Already permitted';
+                addBtn.disabled = true;
+              }
+            }
+          );
+        };
+        window.extLinkListContainer.appendChild(addBtn);
         return;
+      }
+      return;
     }
 
     if (!links || links.length === 0) {
-        const noLinksElement = document.createElement('p');
-        noLinksElement.textContent = 'No HTTP(S) links found or processed.';
-        window.linkListContainer.appendChild(noLinksElement);
-        return;
+      const noLinksElement = document.createElement('p');
+      noLinksElement.textContent = 'No HTTP(S) links found.';
+      window.extLinkListContainer.appendChild(noLinksElement);
+      return;
     }
 
-    // Add count info
     const countElement = document.createElement('p');
-    countElement.textContent = `Found ${links.length} links`;
+    countElement.textContent = `Found ${links.length} links:`;
     countElement.style.fontSize = '12px';
     countElement.style.color = '#666';
     countElement.style.marginBottom = '10px';
-    window.linkListContainer.appendChild(countElement);
+    window.extLinkListContainer.appendChild(countElement);
 
-    // Create links with index and domain only
     links.forEach((link, index) => {
-        const linkElement = document.createElement('a');
-        linkElement.href = link;
-
-        // Display format: [index] domain.com
-        const domain = getDomain(link);
-        linkElement.textContent = `[${index + 1}] ${domain}`;
-
-        // Set the full URL as title for hover tooltip
-        linkElement.title = link;
-
-        linkElement.target = '_blank';
-        linkElement.style.display = 'block';
-        linkElement.style.marginBottom = '5px';
-        linkElement.style.wordBreak = 'break-all';
-        linkElement.style.color = '#007bff';
-        linkElement.style.textDecoration = 'none';
-        linkElement.style.textAlign = 'left';
-        linkElement.style.paddingRight = '10px'; 
-        linkElement.onmouseover = () => linkElement.style.textDecoration = 'underline';
-        linkElement.onmouseout = () => linkElement.style.textDecoration = 'none';
-        window.linkListContainer.appendChild(linkElement);
+      const linkElement = document.createElement('a');
+      linkElement.href = link;
+      const domain = getExtensionDomain(link);
+      linkElement.textContent = `[${index + 1}] ${domain}`; // Display domain for brevity
+      linkElement.title = link; // Full link in title
+      linkElement.target = '_blank';
+      linkElement.style.display = 'block';
+      linkElement.style.marginBottom = '5px';
+      linkElement.style.wordBreak = 'break-all';
+      linkElement.style.color = '#007bff';
+      linkElement.style.textDecoration = 'none';
+      linkElement.onmouseover = () => linkElement.style.textDecoration = 'underline';
+      linkElement.onmouseout = () => linkElement.style.textDecoration = 'none';
+      window.extLinkListContainer.appendChild(linkElement);
     });
-}
+  };
 
-function displayFetchErrorWithFallback(error, url) {
-    if (!window.hoverBox || window.hoverBox.style.display === 'none') {
-        window.createHoverBox();
-    }
-    window.hoverBox.style.display = 'block';
-    window.linkListContainer.innerHTML = ''; // Clear previous content
-
-    // Error message
-    const errorElement = document.createElement('p');
-    errorElement.textContent = error;
-    errorElement.style.color = 'red';
-    window.linkListContainer.appendChild(errorElement);
-
-    // Fallback message
+  // Simplified fallback button display
+  function displayFetchErrorWithFallbackButton(errorMessage, url) {
+    // This function assumes extLinkListContainer is already cleared and error message is shown by caller.
+    // It just adds the fallback part.
     const fallbackMsg = document.createElement('p');
-    fallbackMsg.textContent = 'Would you like to open the page in a new tab instead?';
-    window.linkListContainer.appendChild(fallbackMsg);
+    fallbackMsg.textContent = 'This might be due to network issues or page restrictions. Would you like to try opening the page in a new tab?';
+    fallbackMsg.style.marginTop = '10px';
+    window.extLinkListContainer.appendChild(fallbackMsg);
 
-    // Create button for fallback
     const fallbackButton = document.createElement('button');
-    fallbackButton.textContent = 'Open in New Tab';
+    fallbackButton.textContent = 'Open in New Tab & Retry';
     fallbackButton.style.backgroundColor = '#007bff';
     fallbackButton.style.color = 'white';
+    // ... (add other styles as in your original displayFetchErrorWithFallback)
     fallbackButton.style.border = 'none';
     fallbackButton.style.padding = '8px 12px';
     fallbackButton.style.borderRadius = '4px';
     fallbackButton.style.cursor = 'pointer';
     fallbackButton.style.marginTop = '10px';
     fallbackButton.onclick = () => {
-        // Send message to background script to open URL in new tab
-        chrome.runtime.sendMessage({
-            action: 'openUrlInNewTab',
-            url: url
-        });
-
-        // Update hover box to show loading
-        window.linkListContainer.innerHTML = '<p>Opening page in new tab and extracting links...</p>';
+      chrome.runtime.sendMessage({ action: 'openUrlInNewTab', url: url });
+      if (window.extHoverBox) window.extHoverBox.style.display = 'none'; // Close box after clicking
     };
+    window.extLinkListContainer.appendChild(fallbackButton);
+  }
 
-    window.linkListContainer.appendChild(fallbackButton);
-}
 
-// Keep message listeners outside the initialization guard
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'showHoverBoxWithLinks') {
-    // If sourceUrl is provided, show it as the source
-    if (request.sourceUrl) {
-      window.displayInHoverBox(request.links, null, request.sourceUrl);
-    } else {
-      window.displayInHoverBox(request.links, null);
+  // Message listener from background script
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'showLinks') {
+      window.displayInExtensionHoverBox(request.links, null, request.sourceUrl);
+      sendResponse({ status: "Hover box displayed with links" });
+      return true;
+    } else if (request.action === 'showMessage') {
+      window.displayInExtensionHoverBox(null, request.message, request.sourceUrl, request.type || 'info');
+      sendResponse({ status: "Message displayed in hover box" });
+      return true;
     }
-    sendResponse({ status: "Hover box displayed with links" });
-  } else if (request.action === 'showHoverBoxWithError') {
-    window.displayInHoverBox(null, request.error);
-    sendResponse({ status: "Hover box displayed with error" });
-  } else if (request.action === 'showFetchErrorWithFallback') {
-    window.displayFetchErrorWithFallback(request.error, request.url);
-    sendResponse({ status: "Hover box displayed with error and fallback" });
-  } else if (request.action === 'showPermissionRequest') {
-    window.showPermissionDialog(request.url, request.host);
-    sendResponse({ status: "Permission dialog shown" });
-  } else if (request.action === 'showLinks') {
-    window.displayLinksOnPage(request.links, request.sourceUrl);
-    sendResponse({ status: "Links displayed" });
-  } else if (request.action === 'showMessage') {
-    window.showNotification(request.message, request.type);
-    sendResponse({ status: "Notification shown" });
-  }
-  return true;
-});
+    // Return false if not handling the message or not sending an async response
+    return false;
+  });
 
-// Function to show permission dialog
-function showPermissionDialog(url, hostname) {
-  // First, remove any existing permission dialogs
-  const existingDialog = document.getElementById('link-extractor-permission-dialog');
-  if (existingDialog) {
-    existingDialog.remove();
-  }
-
-  // Create and style the dialog container
-  const dialogContainer = document.createElement('div');
-  dialogContainer.id = 'link-extractor-permission-dialog';
-  dialogContainer.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 9999999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: Arial, sans-serif;
-  `;
-
-  // Create unique IDs for this instance of the dialog
-  const allowBtnId = 'le-allow-btn-' + Date.now();
-  const denyBtnId = 'le-deny-btn-' + Date.now();
-
-  // Create the dialog content without the checkbox section
-  dialogContainer.innerHTML = `
-    <div style="background: white; padding: 20px; border-radius: 8px; max-width: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
-      <h2 style="margin-top: 0;">Domain Permission Request</h2>
-      <p>Link Extractor needs permission to access this domain:</p>
-      <p style="word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 4px; font-size: 18px; font-weight: bold; text-align: center;">${hostname}</p>
-      <p>Approving will allow Link Extractor to access content from this domain. This is required to extract links from the target page.</p>
-      <p style="font-size: 12px; color: #666;">Target page: ${url}</p>
-
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-        <button id="${denyBtnId}" style="padding: 8px 16px; border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px; cursor: pointer;">Deny</button>
-        <button id="${allowBtnId}" style="padding: 8px 16px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Allow Domain Access</button>
-      </div>
-    </div>
-  `;
-
-  // Append dialog to body
-  document.body.appendChild(dialogContainer);
-
-  // Add event listeners using the dynamic IDs
-  const allowBtn = document.getElementById(allowBtnId);
-  const denyBtn = document.getElementById(denyBtnId);
-
-  // Make sure we found our elements
-  if (allowBtn && denyBtn) {
-    allowBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      chrome.runtime.sendMessage({ 
-        action: 'permissionResponse', 
-        granted: true
-      });
-      dialogContainer.remove();
-    });
-
-    denyBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      chrome.runtime.sendMessage({ action: 'permissionResponse', granted: false });
-      dialogContainer.remove();
-    });
-  } else {
-    console.error('Could not find permission dialog buttons');
-  }
-
-  // Add a safety cleanup - remove dialog if extension messaging fails
-  setTimeout(() => {
-    if (document.body.contains(dialogContainer)) {
-      dialogContainer.remove();
+  // Close hover box with Escape key
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      if (window.extHoverBox && window.extHoverBox.style.display !== 'none') {
+        window.extHoverBox.style.display = 'none';
+      }
     }
-  }, 30000); // 30 seconds timeout
-}
-
-// Function to display links on the page near mouse position
-function displayLinksOnPage(links, sourceUrl) {
-  // Create link display container
-  const container = document.createElement('div');
-  container.id = 'link-extractor-results';
-
-  // Position near mouse but ensure it stays in viewport
-  const windowWidth = window.innerWidth;
-  const windowHeight = window.innerHeight;
-
-  // Calculate position (keep the box within viewport)
-  let posX = window.mouseX + 10; // 10px offset from cursor
-  let posY = window.mouseY + 10;
-
-  // Box dimensions (estimated)
-  const boxWidth = 350;
-  const boxHeight = Math.min(500, links.length * 30 + 100); // Rough estimate
-
-  // Adjust if box would go off-screen
-  if (posX + boxWidth > windowWidth) {
-    posX = window.mouseX - boxWidth - 10;
-  }
-
-  if (posY + boxHeight > windowHeight) {
-    posY = window.mouseY - boxHeight - 10;
-  }
-
-  // Ensure box doesn't go off-screen on left/top
-  posX = Math.max(10, posX);
-  posY = Math.max(10, posY);
-
-  container.style.cssText = `
-    position: fixed;
-    top: ${posY}px;
-    left: ${posX}px;
-    width: 350px;
-    max-height: 500px;
-    background: white;
-    z-index: 9999998;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-  `;
-
-  // Create header with close button
-  const header = document.createElement('div');
-  header.style.cssText = `
-    padding: 10px 15px;
-    background: #f5f5f5;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #ddd;
-  `;
-  header.innerHTML = `
-    <div>Links from: ${getDomain(sourceUrl)}</div>
-    <button id="le-close-btn" style="background: none; border: none; cursor: pointer; font-size: 16px;">✕</button>
-  `;
-
-  // Create content area with links
-  const content = document.createElement('div');
-  content.style.cssText = `
-    padding: 10px 15px;
-    max-height: 400px;
-    overflow-y: auto;
-  `;
-
-  if (links.length === 0) {
-    content.innerHTML = '<p>No links found on this page.</p>';
-  } else {
-    // Add count info
-    const countElement = document.createElement('p');
-    countElement.textContent = `Found ${links.length} links`;
-    countElement.style.cssText = `
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 10px;
-    `;
-    content.appendChild(countElement);
-
-    const linkList = document.createElement('ul');
-    linkList.style.cssText = `
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    `;
-
-    links.forEach((link, index) => {
-      const item = document.createElement('li');
-      item.style.margin = '8px 0';
-
-      const linkElement = document.createElement('a');
-      linkElement.href = link;
-
-      // Display format: [index] domain.com
-      const domain = getDomain(link);
-      linkElement.textContent = `[${index + 1}] ${domain}`;
-
-      // Set the full URL as title for hover tooltip
-      linkElement.title = link;
-
-      linkElement.target = '_blank';
-      linkElement.style.cssText = `
-        display: block;
-        word-break: break-all;
-        color: #007bff;
-        text-decoration: none;
-        text-align: left;
-      `;
-
-      linkElement.onmouseover = () => linkElement.style.textDecoration = 'underline';
-      linkElement.onmouseout = () => linkElement.style.textDecoration = 'none';
-
-      item.appendChild(linkElement);
-      linkList.appendChild(item);
-    });
-
-    content.appendChild(linkList);
-  }
-
-  // Assemble and add to page
-  container.appendChild(header);
-  container.appendChild(content);
-  document.body.appendChild(container);
-
-  // Add event listener to close button
-  document.getElementById('le-close-btn').addEventListener('click', () => {
-    container.remove();
   });
 
-  // Make the box draggable for better user experience
-  makeElementDraggable(container, header);
-}
-
-// Function to make elements draggable
-function makeElementDraggable(element, dragHandle) {
-  let offsetX = 0, offsetY = 0;
-  let isDragging = false;
-
-  dragHandle.style.cursor = 'grab';
-
-  dragHandle.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    offsetX = e.clientX - element.getBoundingClientRect().left;
-    offsetY = e.clientY - element.getBoundingClientRect().top;
-    dragHandle.style.cursor = 'grabbing';
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-
-    const x = e.clientX - offsetX;
-    const y = e.clientY - offsetY;
-
-    element.style.left = `${x}px`;
-    element.style.top = `${y}px`;
-  });
-
-  document.addEventListener('mouseup', () => {
-    isDragging = false;
-    dragHandle.style.cursor = 'grab';
-  });
-}
-
-// Function to show notifications
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 20px;
-    border-radius: 4px;
-    color: white;
-    z-index: 9999999;
-    max-width: 300px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
-    opacity: 0.95;
-  `;
-
-  // Set background color based on type
-  if (type === 'error') {
-    notification.style.backgroundColor = '#d93025';
-  } else if (type === 'success') {
-    notification.style.backgroundColor = '#1e8e3e';
-  } else {
-    notification.style.backgroundColor = '#1a73e8';
-  }
-
-  notification.textContent = message;
-  document.body.appendChild(notification);
-
-  // Remove after 3 seconds
-  setTimeout(() => {
-    notification.remove();
-  }, 3000);
-}
+} // End of window.linkExtractorInitialized guard

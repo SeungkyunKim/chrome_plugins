@@ -152,54 +152,47 @@ function setupDomainManagement(container) {
 
 // Function to add a new domain to the permitted list
 function addDomain(domain) {
-    // First, try to convert URLs to domain names
+    let normalizedDomain = domain.trim();
     try {
-        if (domain.startsWith('http://') || domain.startsWith('https://')) {
-            const url = new URL(domain);
-            domain = url.hostname;
+        if (normalizedDomain.startsWith('http://') || normalizedDomain.startsWith('https://')) {
+            const url = new URL(normalizedDomain);
+            normalizedDomain = url.hostname;
         }
     } catch (e) {
         // Not a URL, continue with original input
     }
 
-    // Make sure it's a domain with at least one dot
-    if (!domain.includes('.') || domain === '.' || domain.endsWith('.') || domain.startsWith('.')) {
-        alert('Please enter a valid domain (e.g., example.com)');
+    // Normalize by removing www. prefix
+    if (normalizedDomain.startsWith('www.')) {
+        normalizedDomain = normalizedDomain.substring(4);
+    }
+
+    // Validate the normalized domain
+    if (!normalizedDomain || !normalizedDomain.includes('.') || normalizedDomain === '.' || normalizedDomain.endsWith('.') || normalizedDomain.startsWith('.')) {
+        alert('Please enter a valid domain (e.g., example.com). The "www." prefix is automatically handled.');
         return;
     }
 
     chrome.storage.local.get('permittedDomains', (result) => {
         const permittedDomains = result.permittedDomains || [];
 
-        // Check if domain is already in the list
-        if (permittedDomains.includes(domain)) {
-            alert('This domain is already permitted.');
+        if (permittedDomains.includes(normalizedDomain)) {
+            alert(`Domain "${normalizedDomain}" is already permitted.`);
             return;
         }
 
-        // Add to the list
-        permittedDomains.push(domain);
+        permittedDomains.push(normalizedDomain);
 
-        // Save the updated list
         chrome.storage.local.set({ 'permittedDomains': permittedDomains }, () => {
-            // Display success and reload list
-            console.log(`Domain ${domain} added successfully`);
-            loadDomainsList();
+            console.log(`Domain "${normalizedDomain}" added successfully.`);
+            loadDomainsList(); // Refresh the displayed list
 
-            // Optional: Request permission for this domain (may not be necessary)
-            try {
-                const hostPattern = `*://*.${domain}/*`;
-                chrome.permissions.request({
-                    origins: [hostPattern]
-                }, (granted) => {
-                    if (!granted) {
-                        console.log('Browser permission not granted, but domain is still in our allowed list');
-                    }
-                });
-            } catch (err) {
-                console.error('Error requesting permission:', err);
-                // Continue anyway since we've already saved to our list
-            }
+            // Optional: Request host permission for the original input if needed,
+            // but the primary permission check will use the normalized list.
+            // For simplicity, this part can be omitted if direct host permissions
+            // are not strictly managed beyond the custom list.
+            // const hostPattern = `*://${domain.startsWith('www.') ? domain : 'www.' + domain}/*`; // or construct based on original input
+            // chrome.permissions.request({ origins: [`*://${normalizedDomain}/*`, `*://www.${normalizedDomain}/*`] }, ...);
         });
     });
 }
@@ -211,14 +204,8 @@ function removeDomain(domain) {
         const newList = permittedDomains.filter(d => d !== domain);
 
         chrome.storage.local.set({ 'permittedDomains': newList }, () => {
-            // Try to remove the permission as well
-            const hostPattern = `*://*.${domain}/*`;
-
-            chrome.permissions.remove({
-                origins: [hostPattern]
-            }, () => {
-                loadDomainsList();
-            });
+            console.log("loadDoainList() $domain");
+            loadDomainsList();
         });
     });
 }

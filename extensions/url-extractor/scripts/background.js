@@ -1,314 +1,185 @@
 // This file contains the background script for the extension. It manages events and can handle long-running processes.
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "extractLinksFromTargetPage",
-    title: "Show links from this hyperlink's target page",
-    contexts: ["link"]
-  });
-
-  // Setup tab change handler to update context menu visibility
-  setupTabListeners();
-});
-
-// Function to set up tab event listeners
-function setupTabListeners() {
-  // Update context menu when active tab changes
-  chrome.tabs.onActivated.addListener(activeInfo => {
-    updateContextMenuForTab(activeInfo.tabId);
-  });
-
-  // Update context menu when tab URL changes
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete') {
-      updateContextMenuForTab(tabId);
-    }
-  });
-
-  // Initial check for the current tab
-  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-    if (tabs.length > 0) {
-      updateContextMenuForTab(tabs[0].id);
-    }
-  });
-}
-
-// Update the context menu based on the current tab's domain
-async function updateContextMenuForTab(tabId) {
-  try {
-    // Get the current tab information
-    const tab = await chrome.tabs.get(tabId);
-
-    if (!tab.url || !tab.url.startsWith('http')) {
-      // Not a webpage - disable context menu
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: false,
-        title: "Not available on this page"
-      });
-      return;
-    }
-
-    // Get the domain of the current tab
-    const url = new URL(tab.url);
-    const domain = url.hostname;
-
-    // Check if the domain is permitted
-    const isPermitted = await isDomainPermitted(domain);
-
-    // Update context menu state
-    if (isPermitted) {
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: true,
-        title: "Show links from this hyperlink's target page"
-      });
-    } else {
-      await chrome.contextMenus.update("extractLinksFromTargetPage", { 
-        enabled: false,
-        title: "Current site not in permitted domains"
-      });
-    }
-  } catch (error) {
-    console.error("Error updating context menu:", error);
-  }
-}
-
-// Listen for changes to the permitted domains list and update context menus
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.permittedDomains) {
-    // When domains change, update menus for current tab
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      if (tabs.length > 0) {
-        updateContextMenuForTab(tabs[0].id);
-      }
+  // Remove any existing items first to prevent duplicates on re-install/update
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "extractLinksFromTargetPage",
+      title: "Show links from this hyperlink's target page", // Static title
+      contexts: ["link"]
+      // 'enabled: true' is the default, so no need to set it explicitly here
+      // The menu will always be visually enabled.
     });
-  }
+    console.log("Context menu created (always enabled).");
+  });
 });
 
-const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
-
-// Check if the current browser supports offscreen documents
-const supportsOffscreenDocuments = typeof chrome.runtime.getContexts === 'function' && typeof chrome.offscreen === 'object';
-
-async function setupOffscreenDocument(path) {
-  if (!supportsOffscreenDocuments) {
-    // Safari fallback implementation
-    console.log('Running in Safari - using alternative implementation');
-    return false;
+// Function to check if a domain is permitted (uses normalized domains)
+async function isDomainPermitted(hostname) {
+  let normalizedHostname = hostname;
+  if (normalizedHostname.startsWith('www.')) {
+    normalizedHostname = normalizedHostname.substring(4);
   }
+  // console.log(`[isDomainPermitted] Original hostname: "${hostname}", Normalized for check: "${normalizedHostname}"`);
 
-  // Chrome implementation using offscreen documents
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [chrome.runtime.getURL(path)]
-  });
-
-  if (existingContexts.length > 0) {
-    return true; // Offscreen document already exists
-  }
-
-  await chrome.offscreen.createDocument({
-    url: path,
-    reasons: ['CLIPBOARD', 'AUDIO_PLAYBACK'], // adjust based on your needs
-    justification: 'Needed for processing data'
-  });
-
-  return true;
-}
-
-// Helper function to parse HTML in Safari (since we can't use offscreen documents)
-function parseHtmlForLinks(htmlString) {
-  // Use regex pattern to extract links instead of DOMParser
-  const linkRegex = /<a\s+(?:[^>]*?\s+)?href=(["'])(https?:\/\/[^"']+)\1/gi;
-  const links = [];
-  let match;
-
-  while ((match = linkRegex.exec(htmlString)) !== null) {
-    const url = match[2];
-    if (url && !links.includes(url)) {
-      links.push(url);
-    }
-  }
-
-  return links;
-}
-
-// Function to check if a domain is permitted
-async function isDomainPermitted(domain) {
   return new Promise((resolve) => {
     chrome.storage.local.get('permittedDomains', (result) => {
       const permittedDomains = result.permittedDomains || [];
+      // console.log(`[isDomainPermitted] Stored permitted domains (normalized):`, permittedDomains);
 
-      // Check if the exact domain is in the list
-      if (permittedDomains.includes(domain)) {
+      if (permittedDomains.length === 0) {
+        // console.log(`[isDomainPermitted] No domains permitted. Resolving false.`);
+        resolve(false);
+        return;
+      }
+
+      if (permittedDomains.includes(normalizedHostname)) {
+        // console.log(`[isDomainPermitted] Exact normalized match found for "${normalizedHostname}". Resolving true.`);
         resolve(true);
         return;
       }
 
-      // Check if a parent domain is in the list
-      // For example, if sub.example.com is requested and example.com is in the list
-      const domainParts = domain.split('.');
-      for (let i = 1; i < domainParts.length - 1; i++) {
-        const parentDomain = domainParts.slice(i).join('.');
-        if (permittedDomains.includes(parentDomain)) {
-          resolve(true);
-          return;
+      const domainParts = normalizedHostname.split('.');
+      if (domainParts.length > 1) {
+        for (let i = 1; i < domainParts.length - 1 ; i++) {
+          const parentDomain = domainParts.slice(i).join('.');
+          if (parentDomain && permittedDomains.includes(parentDomain)) {
+            // console.log(`[isDomainPermitted] Parent domain match: "${parentDomain}" (derived from "${normalizedHostname}") is permitted. Resolving true.`);
+            resolve(true);
+            return;
+          }
         }
       }
-
+      
+      // console.log(`[isDomainPermitted] No match found for "${normalizedHostname}". Resolving false.`);
       resolve(false);
     });
   });
 }
 
-// When context menu is clicked
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "extractLinksFromTargetPage" && info.linkUrl) {
+    // console.log(`[onClicked] Context menu clicked for link: ${info.linkUrl}`);
     try {
-      // Parse the URL to get the host
       const url = new URL(info.linkUrl);
       const hostname = url.hostname;
 
-      // Check if this domain is permitted
-      const isPermitted = await isDomainPermitted(hostname);
+      // Ensure content script is injected and ready to receive messages
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["scripts/content.js"]
+        });
+        // console.log("[onClicked] Content script injected/ensured.");
+      } catch (scriptError) {
+        console.error("[onClicked] Failed to inject content script:", scriptError);
+        // Notify user if content script injection fails, as hover box won't work
+        // This could be a chrome.notifications.create() call for a more visible error.
+        alert(`Link Extractor Error: Could not prepare the page for displaying links. (${scriptError.message})`);
+        return; 
+      }
 
-      // First inject content script into the active tab
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ["scripts/content.js"]
-      });
+      const isPermitted = await isDomainPermitted(hostname);
+      // console.log(`[onClicked] Domain "${hostname}" permission status: ${isPermitted}`);
 
       if (isPermitted) {
-        // Domain is permitted, proceed with extraction
+        // console.log(`[onClicked] Domain "${hostname}" is permitted. Fetching links.`);
         fetchAndProcessLinks(info.linkUrl, tab.id);
       } else {
-        // Domain is not permitted, show notification
+        // console.log(`[onClicked] Domain "${hostname}" is NOT permitted. Sending message to content script.`);
         chrome.tabs.sendMessage(tab.id, {
           action: 'showMessage',
-          message: `Domain "${hostname}" is not in your permitted list. Add it from the extension popup.`,
-          type: 'warning'
+          message: `Domain "${hostname}" is not permitted. Please add it via the extension popup to extract links.`,
+          type: 'warning', // content.js can use this to style the message
+          sourceUrl: info.linkUrl // Provide source URL for context in the message if needed
         });
       }
     } catch (error) {
-      console.error("Error in context menu handler:", error);
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'showMessage',
-        message: `Error: ${error.message}`,
-        type: 'error'
-      });
+      console.error("[onClicked] Error in context menu handler:", error);
+      try {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showMessage',
+          message: `Error processing link: ${error.message}`,
+          type: 'error',
+          sourceUrl: info.linkUrl
+        });
+      } catch (sendMessageError) {
+        console.error("[onClicked] Error sending error message to content script:", sendMessageError);
+      }
     }
   }
 });
 
-// Listen for permission response
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'permissionResponse') {
-    chrome.storage.local.get(['pendingUrlExtraction', 'pendingTabId'], async (data) => {
-      if (!data.pendingUrlExtraction) {
-        sendResponse({ status: 'No pending URL found' });
-        return;
-      }
-
-      const targetUrl = data.pendingUrlExtraction;
-      const tabId = data.pendingTabId;
-
-      if (message.granted) {
-        // Save "allow all domains" setting if provided
-        if (message.allowAllDomains === true) {
-          chrome.storage.local.set({ 'allowAllDomains': true });
-        }
-        
-        // Request host permission
-        const urlObj = new URL(targetUrl);
-        const hostPattern = `*://${urlObj.hostname}/*`;
-        
-        chrome.permissions.request({
-          origins: [hostPattern]
-        }, (granted) => {
-          if (granted) {
-            // Permission granted, proceed with fetching
-            fetchAndProcessLinks(targetUrl, tabId);
-            sendResponse({ status: 'Permission granted, fetching links' });
-          } else {
-            // User denied permission in browser dialog
-            chrome.tabs.sendMessage(tabId, {
-              action: 'showMessage',
-              message: 'Permission denied to access the URL.',
-              type: 'error'
-            });
-            sendResponse({ status: 'Permission denied in browser dialog' });
-          }
-          
-          // Clear pending state
-          chrome.storage.local.remove(['pendingUrlExtraction', 'pendingTabId']);
-        });
-      } else {
-        // User denied in our custom dialog
-        chrome.tabs.sendMessage(tabId, {
-          action: 'showMessage',
-          message: 'You declined permission to access the target page.',
-          type: 'info'
-        });
-        
-        // Clear pending state
-        chrome.storage.local.remove(['pendingUrlExtraction', 'pendingTabId']);
-        
-        sendResponse({ status: 'Permission denied in custom dialog' });
-      }
-    });
-
-    // We must return true to indicate we'll respond asynchronously
-    return true;
-  }
-
-  // For all other messages, we're not sending a response
-  return false;
-});
-
-// Function to fetch and process links
 async function fetchAndProcessLinks(url, tabId) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-
-    const htmlString = await response.text();
-    let links = [];
-
-    if (supportsOffscreenDocuments) {
-      // Chrome path using offscreen documents
-      await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH);
-
-      const offscreenResponse = await chrome.runtime.sendMessage({
-        action: 'parseHtmlForLinks',
-        htmlString: htmlString
-      });
-
-      if (offscreenResponse && offscreenResponse.links) {
-        links = offscreenResponse.links;
+      // Try to provide a more specific error message if possible
+      let errorDetail = response.statusText;
+      if (response.status === 0) { // Often indicates a CORS issue or network error
+        errorDetail = "Network error or CORS issue. The extension might not have permission to access this URL directly.";
+      } else if (response.status === 403) {
+        errorDetail = "Access Forbidden. The server denied access to this URL.";
+      } else if (response.status === 404) {
+        errorDetail = "Page Not Found.";
       }
-    } else {
-      // Safari path using regex
-      links = parseHtmlForLinks(htmlString);
+      throw new Error(`HTTP error ${response.status} (${errorDetail}) when fetching ${url}`);
     }
-
-    // Send extracted links to content script for display
+    const htmlString = await response.text();
+    
+    const linkRegex = /<a\s+(?:[^>]*?\s+)?href=(["'])(https?:\/\/[^"']+)\1/gi;
+    const links = [];
+    let match;
+    while ((match = linkRegex.exec(htmlString)) !== null) {
+      if (match[2] && !links.includes(match[2])) {
+        links.push(match[2]);
+      }
+    }
+    // console.log(`[fetchAndProcessLinks] Extracted ${links.length} links from ${url}`);
     chrome.tabs.sendMessage(tabId, {
       action: 'showLinks',
       links: links,
-      sourceUrl: url
-    });
-
-    // Also store for popup
-    chrome.storage.local.set({
-      'linksForPopup': links,
-      'sourceUrl': url
+      sourceUrl: url 
     });
   } catch (error) {
+    console.error("[fetchAndProcessLinks] Error:", error);
+    // Send error to content script to be displayed in the hover box
     chrome.tabs.sendMessage(tabId, {
-      action: 'showMessage',
-      message: `Error: ${error.message}`,
-      type: 'error'
+      action: 'showMessage', // Re-use 'showMessage' or the 'error' parameter of displayInHoverBox
+      message: error.message, // Send the specific error message
+      type: 'error',
+      sourceUrl: url
     });
   }
 }
+
+// Listener for messages from content scripts (e.g., for the fallback button)
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'openUrlInNewTab') {
+      chrome.tabs.create({ url: request.url });
+      // If you want to automatically try fetching after opening in new tab,
+      // you might need more complex logic, perhaps involving the new tab's ID.
+      // For now, just opening it. The user would then right-click again in the new tab.
+      sendResponse({status: "URL opening in new tab"});
+      return true; // Indicates an asynchronous response.
+  }
+  if (request.action === 'addDomain' && request.domain) {
+    let normalized = request.domain.startsWith('www.')
+      ? request.domain.slice(4)
+      : request.domain;
+    chrome.storage.local.get('permittedDomains', (res) => {
+      const list = res.permittedDomains || [];
+      if (!list.includes(normalized)) {
+        list.push(normalized);
+        chrome.storage.local.set({ permittedDomains: list }, () => {
+          sendResponse({ status: 'success', domain: normalized });
+        });
+      } else {
+        sendResponse({ status: 'exists', domain: normalized });
+      }
+    });
+    return true; // keep message channel open for async sendResponse
+  }
+  // Handle other potential messages from content scripts if any
+  return false; // Default for synchronous handling or no response
+});
