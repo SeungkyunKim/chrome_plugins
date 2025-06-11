@@ -112,7 +112,13 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 async function fetchAndProcessLinks(url, tabId) {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+       mode: 'cors',
+       referrerPolicy: 'no-referrer',
+       credentials: 'include',
+       withCredentials: true
+    });
+
     if (!response.ok) {
       // Try to provide a more specific error message if possible
       let errorDetail = response.statusText;
