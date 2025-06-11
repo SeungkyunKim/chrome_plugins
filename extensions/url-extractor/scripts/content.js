@@ -41,25 +41,24 @@ if (typeof window.linkExtractorInitialized === 'undefined') {
     const viewportWidth  = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const boxWidth       = 350;
-    const boxHeight      = 400; // max-height
+    const boxHeight      = 400; // This is max-height, actual height might be less.
+                                // For positioning, we primarily care about width for right alignment.
 
     let leftPos, topPos;
 
-    // if no right-click coords recorded yet (still 0,0), default to top-right
-    if (window.extLastClickX === 0 && window.extLastClickY === 0) {
-      leftPos = viewportWidth - boxWidth - 20;  // 20px from right edge
-      topPos  = 20;                             // 20px from top
-    } else {
-      // position at last right-click
-      leftPos = window.extLastClickX;
-      topPos  = window.extLastClickY;
-    }
+    // Always position at top-right
+    leftPos = viewportWidth - boxWidth - 20;  // 20px offset from the right edge
+    topPos  = 20;                             // 20px offset from the top edge
 
-    // keep inside viewport with 10px margin
-    leftPos = Math.min(leftPos, viewportWidth  - boxWidth  - 10);
-    topPos  = Math.min(topPos,  viewportHeight - boxHeight - 10);
-    leftPos = Math.max(10, leftPos);
-    topPos  = Math.max(10, topPos);
+    // Ensure the box stays within viewport boundaries, especially if the viewport is very small.
+    // Adjust left position to prevent overflow on the right (should be handled by initial calc, but good for safety).
+    leftPos = Math.min(leftPos, viewportWidth  - boxWidth  - 10); // Ensure at least 10px margin from right
+    // Adjust top position to prevent overflow on the bottom (using boxHeight as a reference for max potential height).
+    topPos  = Math.min(topPos,  viewportHeight - boxHeight - 10); // Ensure at least 10px margin from bottom if box is full height
+
+    // Ensure the box is not positioned off-screen to the left or top.
+    leftPos = Math.max(10, leftPos); // Ensure at least 10px margin from left
+    topPos  = Math.max(10, topPos);  // Ensure at least 10px margin from top
 
     window.extHoverBox.style.left = `${leftPos}px`;
     window.extHoverBox.style.top  = `${topPos}px`;
