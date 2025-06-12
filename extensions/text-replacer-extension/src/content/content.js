@@ -33,26 +33,55 @@ function applyAllSavedReplacements() {
 // Function to perform text replacement
 function performTextReplacement(tagName, findText, replaceText) {
   try {
-    // Get all elements with the specified tag name
-    const elements = document.getElementsByTagName(tagName);
     let replacementCount = 0;
     
-    // Loop through all matching elements
-    for (let i = 0; i < elements.length; i++) {
-      const element = elements[i];
+    // Check if tag input contains a property specification (tagName;propertyName)
+    if (tagName.includes(';')) {
+      const [actualTagName, propertyName] = tagName.split(';');
       
-      // Get all text nodes within this element (including nested ones)
-      const textNodes = getTextNodesIn(element);
+      // Get all elements with the specified tag name
+      const elements = document.getElementsByTagName(actualTagName);
       
-      // Process each text node
-      for (let j = 0; j < textNodes.length; j++) {
-        const node = textNodes[j];
-        const text = node.nodeValue;
+      // Loop through all matching elements
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
         
-        if (text.includes(findText)) {
-          // Replace text in the node
-          node.nodeValue = text.split(findText).join(replaceText);
-          replacementCount++;
+        // Check if the element has the specified property
+        if (element.hasAttribute(propertyName)) {
+          const propertyValue = element.getAttribute(propertyName);
+          
+          // Check if property value contains the text to find
+          if (propertyValue.includes(findText)) {
+            // Replace text in the property value
+            const newValue = propertyValue.split(findText).join(replaceText);
+            element.setAttribute(propertyName, newValue);
+            replacementCount++;
+          }
+        }
+      }
+    } 
+    // Original text node replacement logic
+    else {
+      // Get all elements with the specified tag name
+      const elements = document.getElementsByTagName(tagName);
+      
+      // Loop through all matching elements
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+        
+        // Get all text nodes within this element (including nested ones)
+        const textNodes = getTextNodesIn(element);
+        
+        // Process each text node
+        for (let j = 0; j < textNodes.length; j++) {
+          const node = textNodes[j];
+          const text = node.nodeValue;
+          
+          if (text.includes(findText)) {
+            // Replace text in the node
+            node.nodeValue = text.split(findText).join(replaceText);
+            replacementCount++;
+          }
         }
       }
     }
