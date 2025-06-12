@@ -18,11 +18,13 @@
       <div class="form-group">
         <label for="findText">Text to find:</label>
         <input type="text" id="findText" placeholder="Text to search for">
+        <div class="help-text">Uses JavaScript regex. For capture groups, use $1, $2 in replacement text.</div>
       </div>
       
       <div class="form-group">
         <label for="replaceText">Replace with:</label>
         <input type="text" id="replaceText" placeholder="Replacement text">
+        <div class="help-text">Use $1, $2 to refer to captured groups from the find pattern.</div>
       </div>
       
       <button type="button" id="saveBtn">Save & Apply</button>

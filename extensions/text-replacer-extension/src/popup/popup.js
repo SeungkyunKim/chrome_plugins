@@ -50,13 +50,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Create a unique ID for this set
         const id = Date.now().toString();
         
-        // Create new set with domain
+        // Create new set with domain and always enable regex
         const newSet = {
           id: id,
           tagName: tagName,
           findText: findText,
           replaceText: replaceText,
-          domain: domain
+          domain: domain,
+          useRegex: true  // Always use regex by default
         };
         
         // Add new set
