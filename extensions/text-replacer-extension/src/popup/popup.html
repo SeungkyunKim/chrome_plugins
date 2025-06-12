@@ -8,42 +8,17 @@
   <div class="container">
     <h2>Text Replacer</h2>
     
-    <form id="replaceForm">
-      <div class="form-group">
-        <label for="tagName">HTML Tag:</label>
-        <input type="text" id="tagName" placeholder="e.g., div, span, p or tag;attribute (a;HREF)">
-        <div class="help-text">For attribute replacement use: tag;attribute (e.g., a;NAME)</div>
-      </div>
-      
-      <div class="form-group">
-        <label for="findText">Text to find:</label>
-        <input type="text" id="findText" placeholder="Text to search for">
-        <div class="help-text">Uses JavaScript regex. For capture groups, use $1, $2 in replacement text.</div>
-      </div>
-      
-      <div class="form-group">
-        <label for="replaceText">Replace with:</label>
-        <input type="text" id="replaceText" placeholder="Replacement text">
-        <div class="help-text">Use $1, $2 to refer to captured groups from the find pattern.</div>
-      </div>
-      
-      <button type="button" id="saveBtn">Save & Apply</button>
-    </form>
-    
-    <div id="status"></div>
-    
-    <!-- Saved sets section -->
     <div id="savedSetsSection" style="display: none;">
-      <h3>Saved Sets</h3>
+      <h3>Active Replacement Sets</h3>
       <div class="table-container">
         <table id="savedSetsTable">
           <thead>
             <tr>
+              <th>Action</th>
               <th>Tag</th>
               <th>Find</th>
               <th>Replace</th>
-              <th data-column="domain">Domain</th>
-              <th>Action</th>
+              <th>Domain</th>
             </tr>
           </thead>
           <tbody id="savedSetsBody">
@@ -51,6 +26,14 @@
           </tbody>
         </table>
       </div>
+    </div>
+    
+    <div id="noSetsMessage" style="display: none; text-align: center; margin: 20px 0;">
+      No replacement sets configured for this domain.
+    </div>
+    
+    <div class="footer">
+      <a href="#" id="openSettings">Manage Replacement Sets</a>
     </div>
   </div>
   <script src="popup.js"></script>

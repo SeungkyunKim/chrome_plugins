@@ -25,3 +25,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep the message channel open for async response
   }
 });
+
+// Open options page when extension icon is clicked with Alt key
+chrome.action.onClicked.addListener((tab, info) => {
+  // We only get here if the popup failed to open (popup takes precedence)
+  chrome.runtime.openOptionsPage();
+});
