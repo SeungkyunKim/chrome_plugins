@@ -177,4 +177,54 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   }
+  
+  // Add this function to parse domain from URL
+  function extractDomain(url) {
+    // Handle empty input
+    if (!url) return '';
+    
+    // Check if it's a URL with protocol
+    if (url.includes('://')) {
+      try {
+        const urlObj = new URL(url);
+        return urlObj.hostname;
+      } catch (e) {
+        // If URL parsing fails, continue with other methods
+      }
+    }
+    
+    // Remove any paths, query params, etc.
+    return url.split('/')[0].split('?')[0].split('#')[0];
+  }
+  
+  // When saving the domain value (modify your existing save function)
+  document.getElementById('saveBtn').addEventListener('click', function() {
+    const tagName = document.getElementById('tagName').value.trim();
+    const findText = document.getElementById('findText').value;
+    const replaceText = document.getElementById('replaceText').value;
+    const domainInput = document.getElementById('domain').value.trim();
+    const cleanDomain = extractDomain(domainInput);
+    
+    // Validate inputs
+    if (!tagName) {
+      showStatus('Please enter a tag name', 'error');
+      return;
+    }
+    
+    if (!findText) {
+      showStatus('Please enter text to find', 'error');
+      return;
+    }
+    
+    // Validate regex pattern
+    try {
+      new RegExp(findText);
+    } catch (e) {
+      showStatus('Invalid regular expression in find text', 'error');
+      return;
+    }
+    
+    // Save to Chrome storage
+    saveInputSet(tagName, findText, replaceText, cleanDomain);
+  });
 });
