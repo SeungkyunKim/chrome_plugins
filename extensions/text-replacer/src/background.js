@@ -42,17 +42,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const currentDomain = url.hostname;
     const currentOriginPattern = `*://${currentDomain}/*`;
     
-    // First check if we have permission for this domain
+    // Check if we have permission for this domain
     chrome.permissions.contains({ origins: [currentOriginPattern] }, (granted) => {
       if (granted) {
-        // Then check if we have any rules specifically for this domain
+        // Then check if we have any enabled rules for this domain
         chrome.storage.local.get('savedSets', (data) => {
           const savedSets = data.savedSets || [];
           
-          // Only look for rules with a domain that matches this page
-          // Removed the "!set.domain ||" condition
+          // Only consider enabled rules
           const hasMatchingRule = savedSets.some(set => 
-            set.domain && currentDomain.includes(set.domain)
+            set.domain && 
+            currentDomain.includes(set.domain) &&
+            set.enabled !== false  // Check enabled status
           );
           
           if (hasMatchingRule) {
@@ -117,7 +118,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Open options page when extension icon is clicked with Alt key
 chrome.action.onClicked.addListener((tab) => {
-  chrome.runtime.openOptionsPage();
+  if (tab && tab.url && (tab.url.startsWith('http:') || tab.url.startsWith('https:'))) {
+    try {
+      // Extract domain from current tab URL
+      const url = new URL(tab.url);
+      const domain = url.hostname;
+      
+      // Store domain temporarily
+      chrome.storage.local.set({ 'tempDomain': domain }, function() {
+        // Then open options page
+        chrome.runtime.openOptionsPage();
+      });
+    } catch(e) {
+      console.error("Error extracting domain:", e);
+      chrome.runtime.openOptionsPage();
+    }
+  } else {
+    // Just open options page if no valid URL
+    chrome.runtime.openOptionsPage();
+  }
 });
 
 // Listen for permission changes

@@ -1,14 +1,163 @@
 document.addEventListener('DOMContentLoaded', function() {
-  const saveBtn = document.getElementById('saveBtn');
-  const statusDiv = document.getElementById('status');
+  // Get DOM references
+  const savedSetsSection = document.getElementById('savedSetsSection');
+  const noSetsMessage = document.getElementById('noSetsMessage');
   const savedSetsBody = document.getElementById('savedSetsBody');
-  const noSetsDiv = document.getElementById('noSets');
+  const saveBtn = document.getElementById('saveBtn');
+  const domainInput = document.getElementById('domain');
+  const statusDiv = document.getElementById('status'); // Add this line
   
-  // Load saved sets on page load
+  // Check for domain passed from popup or background
+  chrome.storage.local.get('tempDomain', function(data) {
+    if (data.tempDomain && domainInput) {
+      // Set the domain input value
+      domainInput.value = data.tempDomain;
+      
+      // Clear the temporary storage
+      chrome.storage.local.remove('tempDomain');
+    }
+  });
+  
+  // Initialize UI and add event listeners
   loadSavedSets();
   
+  if (saveBtn) {
+    saveBtn.addEventListener('click', handleSaveClick);
+  }
+  
+  // Function to load saved sets
+  function loadSavedSets() {
+    chrome.storage.local.get('savedSets', data => {
+      const savedSets = data.savedSets || [];
+      
+      if (!savedSetsBody) {
+        console.error("savedSetsBody element not found!");
+        return;
+      }
+      
+      // Clear the table
+      savedSetsBody.innerHTML = '';
+      
+      if (savedSets.length > 0) {
+        // Show the saved sets section
+        if (savedSetsSection) savedSetsSection.style.display = 'block';
+        if (noSetsMessage) noSetsMessage.style.display = 'none';
+        
+        savedSets.forEach(set => {
+          const row = document.createElement('tr');
+          // Add disabled class if rule is disabled
+          if (set.enabled === false) {
+            row.classList.add('disabled-rule');
+          }
+          
+          // Status column with toggle switch
+          const statusCell = document.createElement('td');
+          const switchLabel = document.createElement('label');
+          switchLabel.className = 'switch';
+          
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = set.enabled !== false; // Default to true if property is missing
+          checkbox.addEventListener('change', function() {
+            toggleRuleState(set.id);
+          });
+          
+          const sliderSpan = document.createElement('span');
+          sliderSpan.className = 'slider';
+          
+          switchLabel.appendChild(checkbox);
+          switchLabel.appendChild(sliderSpan);
+          statusCell.appendChild(switchLabel);
+          
+          // Action column (delete button)
+          const actionCell = document.createElement('td');
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.addEventListener('click', function() {
+            deleteSet(set.id);
+          });
+          actionCell.appendChild(deleteBtn);
+          
+          // Other data cells
+          const tagCell = document.createElement('td');
+          tagCell.textContent = set.tagName;
+          
+          const findCell = document.createElement('td');
+          findCell.textContent = set.findText;
+          
+          const replaceCell = document.createElement('td');
+          replaceCell.textContent = set.replaceText;
+          
+          const domainCell = document.createElement('td');
+          domainCell.textContent = set.domain || '';
+          
+          // Append all cells to row
+          row.appendChild(statusCell);
+          row.appendChild(actionCell);
+          row.appendChild(tagCell);
+          row.appendChild(findCell);
+          row.appendChild(replaceCell);
+          row.appendChild(domainCell);
+          
+          savedSetsBody.appendChild(row);
+        });
+      } else {
+        // No saved sets
+        if (savedSetsSection) savedSetsSection.style.display = 'none';
+        if (noSetsMessage) noSetsMessage.style.display = 'block';
+      }
+    });
+  }
+  
+  // Function to toggle rule state
+  function toggleRuleState(id) {
+    chrome.storage.local.get('savedSets', data => {
+      const savedSets = data.savedSets || [];
+      
+      const updatedSets = savedSets.map(set => {
+        if (set.id === id) {
+          // Toggle the enabled state
+          return { ...set, enabled: set.enabled === false ? true : false };
+        }
+        return set;
+      });
+      
+      chrome.storage.local.set({ savedSets: updatedSets }, () => {
+        loadSavedSets(); // Refresh the UI
+        
+        // Find the affected domain to refresh any open tabs with that domain
+        const affectedSet = updatedSets.find(set => set.id === id);
+        if (affectedSet && affectedSet.domain) {
+          const originPattern = `*://${affectedSet.domain}/*`;
+          chrome.tabs.query({ url: originPattern }, tabs => {
+            tabs.forEach(tab => {
+              if (tab.id) {
+                // Reload the tab to apply or remove rules
+                chrome.tabs.reload(tab.id);
+              }
+            });
+          });
+        }
+      });
+    });
+  }
+  
+  // Function to delete a rule
+  function deleteSet(id) {
+    chrome.storage.local.get('savedSets', data => {
+      let savedSets = data.savedSets || [];
+      savedSets = savedSets.filter(set => set.id !== id);
+      
+      chrome.storage.local.set({ savedSets }, () => {
+        loadSavedSets();
+        showStatus('Rule deleted successfully', 'success');
+      });
+    });
+  }
+  
   // Handle save button click
-  saveBtn.addEventListener('click', async function() {
+  async function handleSaveClick() {
     const tagName = document.getElementById('tagName').value.trim();
     const findText = document.getElementById('findText').value;
     const replaceText = document.getElementById('replaceText').value;
@@ -50,46 +199,44 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Save the rule with the domain
     saveInputSet(tagName, findText, replaceText, cleanDomain);
-  });
+  }
   
-  // Function to save input set to Chrome storage
+  // Update the saveInputSet function to include 'enabled' flag
   function saveInputSet(tagName, findText, replaceText, domain) {
-    chrome.storage.local.get('savedSets', function(data) {
+    chrome.storage.local.get('savedSets', data => {
       const savedSets = data.savedSets || [];
-      
-      // Create a unique ID for this set
-      const id = Date.now().toString();
-      
-      // Create new set
-      const newSet = {
-        id: id,
-        tagName: tagName,
-        findText: findText,
-        replaceText: replaceText,
-        domain: domain
-      };
-      
-      // Add new set
-      savedSets.push(newSet);
-      
-      // Save back to storage
-      chrome.storage.local.set({ savedSets: savedSets }, function() {
-        showStatus('Replacement set saved successfully!', 'success');
-        clearForm();
+      savedSets.push({ 
+        id: Date.now().toString(), 
+        tagName, 
+        findText, 
+        replaceText, 
+        domain,
+        enabled: true  // Default to enabled when creating new rules
+      });
+      chrome.storage.local.set({ savedSets }, () => {
+        showStatus('Replacement set saved!', 'success');
         loadSavedSets();
+        clearForm();
       });
     });
   }
   
   // Function to show status message
   function showStatus(message, type) {
+    if (!statusDiv) {
+      console.error("Status div not found");
+      return;
+    }
+    
     statusDiv.textContent = message;
     statusDiv.className = type;
     
     // Clear status after 3 seconds
     setTimeout(() => {
-      statusDiv.textContent = '';
-      statusDiv.className = '';
+      if (statusDiv) {
+        statusDiv.textContent = '';
+        statusDiv.className = '';
+      }
     }, 3000);
   }
   
@@ -99,98 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('findText').value = '';
     document.getElementById('replaceText').value = '';
     document.getElementById('domain').value = '';
-  }
-  
-  // Function to load saved sets from Chrome storage
-  function loadSavedSets() {
-    chrome.storage.local.get('savedSets', function(data) {
-      const savedSets = data.savedSets || [];
-      
-      if (savedSets.length > 0) {
-        // Hide no sets message and show table
-        noSetsDiv.style.display = 'none';
-        savedSetsBody.innerHTML = '';
-        
-        // Add each saved set to the table
-        savedSets.forEach(function(set) {
-          const row = document.createElement('tr');
-          row.className = 'saved-set-row';
-          
-          // Create action cell with delete button (now first)
-          const actionCell = document.createElement('td');
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = 'Delete';
-          deleteBtn.className = 'delete-btn';
-          deleteBtn.addEventListener('click', function(e) {
-            e.stopPropagation(); // Prevent row click from firing
-            deleteSavedSet(set.id);
-          });
-          
-          actionCell.appendChild(deleteBtn);
-          
-          // Create other cells
-          const tagCell = document.createElement('td');
-          tagCell.textContent = set.tagName;
-          
-          const findCell = document.createElement('td');
-          findCell.textContent = set.findText;
-          
-          const replaceCell = document.createElement('td');
-          replaceCell.textContent = set.replaceText;
-          
-          const domainCell = document.createElement('td');
-          domainCell.textContent = set.domain || 'All domains';
-          
-          // Append cells in new order - action first
-          row.appendChild(actionCell);
-          row.appendChild(tagCell);
-          row.appendChild(findCell);
-          row.appendChild(replaceCell);
-          row.appendChild(domainCell);
-          
-          // Make the entire row clickable to edit
-          row.addEventListener('click', function() {
-            loadSetIntoForm(set);
-          });
-          
-          savedSetsBody.appendChild(row);
-        });
-      } else {
-        // Show no sets message and hide table
-        noSetsDiv.style.display = 'block';
-      }
-    });
-  }
-  
-  // Function to load a set into the form
-  function loadSetIntoForm(set) {
-    document.getElementById('tagName').value = set.tagName;
-    document.getElementById('findText').value = set.findText;
-    document.getElementById('replaceText').value = set.replaceText;
-    document.getElementById('domain').value = set.domain || '';
-    
-    showStatus('Set loaded into form for editing', 'success');
-    
-    // Scroll to form section
-    document.querySelector('.section:last-child').scrollIntoView({
-      behavior: 'smooth'
-    });
-  }
-  
-  // Function to delete a saved set
-  function deleteSavedSet(id) {
-    chrome.storage.local.get('savedSets', function(data) {
-      let savedSets = data.savedSets || [];
-      
-      // Filter out the set with the matching ID
-      savedSets = savedSets.filter(set => set.id !== id);
-      
-      // Save back to storage
-      chrome.storage.local.set({ savedSets: savedSets }, function() {
-        showStatus('Replacement set deleted', 'success');
-        loadSavedSets();
-      });
-    });
   }
   
   // Add this function to parse domain from URL

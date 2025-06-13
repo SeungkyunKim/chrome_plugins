@@ -1,22 +1,41 @@
 document.addEventListener('DOMContentLoaded', function() {
+  // Get DOM elements
   const savedSetsSection = document.getElementById('savedSetsSection');
-  const savedSetsBody = document.getElementById('savedSetsBody');
   const noSetsMessage = document.getElementById('noSetsMessage');
+  const savedSetsBody = document.getElementById('savedSetsBody');
+  const openSettingsLink = document.getElementById('openSettings');
   
-  // Load saved sets on popup open
+  // Load saved sets for the current domain
   loadSavedSets();
   
-  // Add event listener for settings link
-  document.getElementById('openSettings').addEventListener('click', function() {
-    chrome.runtime.openOptionsPage();
+  // Open options page when link is clicked
+  openSettingsLink.addEventListener('click', function() {
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      if (tabs[0] && tabs[0].url) {
+        try {
+          // Extract just the domain from the URL
+          const url = new URL(tabs[0].url);
+          const domain = url.hostname;
+          
+          // Save domain to storage temporarily
+          chrome.storage.local.set({ 'tempDomain': domain }, function() {
+            // Open options page after saving domain
+            chrome.runtime.openOptionsPage();
+          });
+        } catch(e) {
+          console.error("Error parsing URL:", e);
+          chrome.runtime.openOptionsPage();
+        }
+      } else {
+        chrome.runtime.openOptionsPage();
+      }
+    });
   });
   
   // Function to load saved sets from Chrome storage
   function loadSavedSets() {
-    // Get current tab to determine domain
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
       if (!tabs[0]) {
-        // If no active tab, show no sets message
         savedSetsSection.style.display = 'none';
         noSetsMessage.style.display = 'block';
         noSetsMessage.textContent = 'No active tab detected.';
@@ -31,12 +50,12 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.storage.local.get('savedSets', function(data) {
           const savedSets = data.savedSets || [];
           
-          // Filter sets to only those matching current domain
+          // Filter sets to only match current domain (even disabled ones)
           const matchingSets = savedSets.filter(set => 
             set.domain && currentDomain.includes(set.domain)
           );
           
-          // Clear the current table regardless of whether there are matches
+          // Clear the current table
           savedSetsBody.innerHTML = '';
           
           if (matchingSets.length > 0) {
@@ -47,23 +66,32 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add each saved set to the table
             matchingSets.forEach(function(set) {
               const row = document.createElement('tr');
-              row.className = 'saved-set-row';
               
-              // Create action cell first
-              const actionCell = document.createElement('td');
-              const deleteBtn = document.createElement('button');
-              deleteBtn.textContent = 'Delete';
-              deleteBtn.className = 'delete-btn';
+              // Add disabled class if rule is disabled
+              if (set.enabled === false) {
+                row.classList.add('disabled-rule');
+              }
               
-              // Add event listener for delete button
-              deleteBtn.addEventListener('click', function(e) {
-                e.stopPropagation(); // Prevent row click from firing
-                deleteSavedSet(set.id);
+              // Status column with toggle switch
+              const statusCell = document.createElement('td');
+              const switchLabel = document.createElement('label');
+              switchLabel.className = 'switch';
+              
+              const checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.checked = set.enabled !== false; // Default to true if property is missing
+              checkbox.addEventListener('change', function() {
+                toggleRuleState(set.id, currentDomain);
               });
               
-              actionCell.appendChild(deleteBtn);
+              const sliderSpan = document.createElement('span');
+              sliderSpan.className = 'slider';
               
-              // Create other cells
+              switchLabel.appendChild(checkbox);
+              switchLabel.appendChild(sliderSpan);
+              statusCell.appendChild(switchLabel);
+              
+              // Data columns
               const tagCell = document.createElement('td');
               tagCell.textContent = set.tagName;
               
@@ -73,23 +101,19 @@ document.addEventListener('DOMContentLoaded', function() {
               const replaceCell = document.createElement('td');
               replaceCell.textContent = set.replaceText;
               
-              const domainCell = document.createElement('td');
-              domainCell.textContent = set.domain || 'All domains';
-              
-              // Add cells in new order - action first
-              row.appendChild(actionCell);
+              // Append cells to row
+              row.appendChild(statusCell);
               row.appendChild(tagCell);
               row.appendChild(findCell);
               row.appendChild(replaceCell);
-              row.appendChild(domainCell);
               
               savedSetsBody.appendChild(row);
             });
           } else {
-            // Hide the saved sets section if no sets are saved
+            // No matching sets
             savedSetsSection.style.display = 'none';
             noSetsMessage.style.display = 'block';
-            noSetsMessage.textContent = `No replacement sets configured for "${currentDomain}".`;
+            noSetsMessage.textContent = `No replacement sets for "${currentDomain}".`;
           }
         });
       } catch (e) {
@@ -101,28 +125,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Function to delete a saved set
-  function deleteSavedSet(id) {
-    chrome.storage.local.get('savedSets', function(data) {
-      let savedSets = data.savedSets || [];
+  // Function to toggle rule state
+  function toggleRuleState(id, currentDomain) {
+    chrome.storage.local.get('savedSets', data => {
+      const savedSets = data.savedSets || [];
       
-      // Filter out the set with the matching ID
-      savedSets = savedSets.filter(set => set.id !== id);
+      const updatedSets = savedSets.map(set => {
+        if (set.id === id) {
+          // Toggle the enabled state
+          return { ...set, enabled: set.enabled === false ? true : false };
+        }
+        return set;
+      });
       
-      // Save back to storage
-      chrome.storage.local.set({ savedSets: savedSets }, function() {
-        // Get current tab info first to ensure we have it for loadSavedSets
+      chrome.storage.local.set({ savedSets: updatedSets }, () => {
+        // Refresh the UI
+        loadSavedSets();
+        
+        // Reload the current tab to apply changes
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-          // If savedSets is now empty, notify background script
-          if (savedSets.length === 0) {
-            // Send message to background script that all rules are gone
-            chrome.runtime.sendMessage({ action: "allRulesDeleted" });
-          }
-          
-          // Update the UI
-          loadSavedSets();
-          
-          // Reload the current tab if available
           if (tabs[0]) {
             chrome.tabs.reload(tabs[0].id);
           }

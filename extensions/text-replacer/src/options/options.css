@@ -70,14 +70,23 @@ button:hover {
   border-radius: 4px;
 }
 
+.status-message {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
 .success {
-  color: green;
-  background-color: #e8f5e9;
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
 }
 
 .error {
-  color: red;
-  background-color: #ffebee;
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
 }
 
 /* Table Styles */
@@ -132,4 +141,67 @@ th {
   color: #666;
   margin-top: 3px;
   font-style: italic;
+}
+
+/* Toggle Switch Styles */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #4CAF50;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #4CAF50;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* Style for disabled rules */
+.disabled-rule td {
+  color: #999;
+  font-style: italic;
+}
+
+/* Ensure the status column is wide enough */
+#savedSetsTable th:first-child,
+#savedSetsTable td:first-child {
+  width: 80px;
+  text-align: center;
 }

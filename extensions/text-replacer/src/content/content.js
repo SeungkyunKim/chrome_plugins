@@ -28,10 +28,11 @@ function applyAllSavedReplacements() {
     chrome.storage.local.get('savedSets', function(data) {
       const savedSets = data.savedSets || [];
       
-      // Only apply rules with a domain that matches the current page
-      // Remove the "!set.domain ||" condition to eliminate the "all domains" behavior
+      // Filter sets to only those matching current domain and enabled
       const matchingSets = savedSets.filter(set => 
-        set.domain && currentDomain.includes(set.domain)
+        set.domain && 
+        currentDomain.includes(set.domain) && 
+        set.enabled !== false  // Only apply enabled rules
       );
       
       // Apply each matching set
@@ -43,8 +44,8 @@ function applyAllSavedReplacements() {
       });
       
       resolve({ 
-        count: totalReplacements, 
-        rulesApplied: matchingSets.length 
+        count: totalReplacements,
+        rulesApplied: matchingSets.length
       });
     });
   });

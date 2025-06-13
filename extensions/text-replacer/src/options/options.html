@@ -8,12 +8,41 @@
   <div class="container">
     <h1>Text Replacer Settings</h1>
     
-    <div class="section">
+    <div class="form-section">
+      <h2>Add New Replacement</h2>
+      <div class="form-group">
+        <label for="tagName">HTML Tag:</label>
+        <input type="text" id="tagName" placeholder="e.g.) p, div, a;href (for attributes)">
+      </div>
+      
+      <div class="form-group">
+        <label for="findText">Find Text:</label>
+        <input type="text" id="findText" placeholder="Text to find (supports regex)">
+      </div>
+      
+      <div class="form-group">
+        <label for="replaceText">Replace With:</label>
+        <input type="text" id="replaceText" placeholder="Replacement text (use $1, $2 for regex groups)">
+      </div>
+      
+      <div class="form-group">
+        <label for="domain">Apply to Domain:</label>
+        <input type="text" id="domain" placeholder="e.g., example.com">
+        <small class="helper-text">Domain name where this rule should apply</small>
+      </div>
+      
+      <button id="saveBtn" class="primary-btn">Save</button>
+    </div>
+    
+    <div id="status"></div>
+    
+    <div id="savedSetsSection">
       <h2>Saved Replacement Sets</h2>
       <div class="table-container">
         <table id="savedSetsTable">
           <thead>
             <tr>
+              <th>Status</th>
               <th>Action</th>
               <th>Tag</th>
               <th>Find</th>
@@ -21,47 +50,16 @@
               <th>Domain</th>
             </tr>
           </thead>
-          <tbody id="savedSetsBody">
-            <!-- Saved sets will be displayed here -->
-          </tbody>
+          <tbody id="savedSetsBody"></tbody>
         </table>
       </div>
-      <div id="noSets" style="display: none;">No saved replacement sets found.</div>
     </div>
     
-    <div class="section">
-      <h2>Add New Replacement Set</h2>
-      <form id="replaceForm">
-        <div class="form-group">
-          <label for="tagName">HTML Tag:</label>
-          <input type="text" id="tagName" placeholder="e.g., div, span, p or tag;attribute (a;HREF)">
-          <div class="help-text">For attribute replacement use: tag;attribute (e.g., a;NAME)</div>
-        </div>
-        
-        <div class="form-group">
-          <label for="findText">Text to find:</label>
-          <input type="text" id="findText" placeholder="Text to search for">
-          <div class="help-text">Uses JavaScript regex. For capture groups, use $1, $2 in replacement text.</div>
-        </div>
-        
-        <div class="form-group">
-          <label for="replaceText">Replace with:</label>
-          <input type="text" id="replaceText" placeholder="Replacement text">
-          <div class="help-text">Use $1, $2 to refer to captured groups from the find pattern.</div>
-        </div>
-        
-        <div class="form-group">
-          <label for="domain">Apply to Domain:</label>
-          <input type="text" id="domain" required placeholder="e.g., example.com">
-          <small class="helper-text">Domain name where this rule should apply (required)</small>
-        </div>
-        
-        <button type="button" id="saveBtn">Save Replacement Set</button>
-      </form>
-      
-      <div id="status"></div>
+    <div id="noSetsMessage" style="display: none;">
+      No replacement sets have been saved yet.
     </div>
   </div>
+  
   <script src="options.js"></script>
 </body>
 </html>
