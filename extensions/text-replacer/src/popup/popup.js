@@ -28,7 +28,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const savedSets = data.savedSets || [];
         
         // Filter sets to only those matching current domain
-        const matchingSets = savedSets.filter(set => !set.domain || set.domain === currentDomain);
+        const matchingSets = savedSets.filter(set => 
+          set.domain && currentDomain.includes(set.domain)
+        );
         
         if (matchingSets.length > 0) {
           // Show the saved sets section

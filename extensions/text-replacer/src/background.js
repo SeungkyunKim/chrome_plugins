@@ -45,11 +45,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // First check if we have permission for this domain
     chrome.permissions.contains({ origins: [currentOriginPattern] }, (granted) => {
       if (granted) {
-        // Then check if we have any rules for this domain
+        // Then check if we have any rules specifically for this domain
         chrome.storage.local.get('savedSets', (data) => {
           const savedSets = data.savedSets || [];
+          
+          // Only look for rules with a domain that matches this page
+          // Removed the "!set.domain ||" condition
           const hasMatchingRule = savedSets.some(set => 
-            !set.domain || currentDomain.includes(set.domain));
+            set.domain && currentDomain.includes(set.domain)
+          );
           
           if (hasMatchingRule) {
             // Inject content script
@@ -128,18 +132,46 @@ chrome.action.onClicked.addListener((tab) => {
 // Listen for permission changes
 chrome.permissions.onAdded.addListener((permissions) => {
   if (permissions.origins && permissions.origins.length > 0) {
-    // When new permissions are granted, apply rules to matching open tabs
     permissions.origins.forEach(originPattern => {
       chrome.tabs.query({ url: originPattern }, (tabs) => {
-        tabs.forEach((tab) => {
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['src/content/content.js']
-          }).then(() => {
-            chrome.tabs.sendMessage(tab.id, { action: 'applyAllRules' });
-          }).catch(e => console.log("Error injecting script after permission granted:", e));
+        if (!tabs || tabs.length === 0) return;
+        
+        // Get domain from the origin pattern
+        let domain = '';
+        try {
+          // Extract domain from pattern like "*://example.com/*"
+          const match = originPattern.match(/\*:\/\/([^\/]+)\/\*/);
+          if (match && match[1]) {
+            domain = match[1];
+          }
+        } catch (e) {
+          console.error("Could not extract domain from pattern:", originPattern);
+          return;
+        }
+        
+        if (!domain) return;
+        
+        // Check if we have rules for this specific domain
+        chrome.storage.local.get('savedSets', (data) => {
+          const savedSets = data.savedSets || [];
+          const matchingSets = savedSets.filter(set => 
+            set.domain && domain.includes(set.domain)
+          );
+          
+          if (matchingSets.length > 0) {
+            tabs.forEach((tab) => {
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['src/content/content.js']
+              }).then(() => {
+                chrome.tabs.sendMessage(tab.id, { action: 'applyAllRules' });
+              }).catch(e => console.log("Error injecting script after permission granted:", e));
+            });
+          }
         });
       });
     });
   }
 });
+
+// Rest of your background.js code...

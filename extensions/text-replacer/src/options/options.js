@@ -33,13 +33,22 @@ document.addEventListener('DOMContentLoaded', function() {
       showStatus('Invalid regular expression in find text', 'error');
       return;
     }
-    
-    // Request permission if domain specified
-    if (cleanDomain) {
-      await requestDomainPermission(cleanDomain);
+
+    // Require domain field
+    if (!cleanDomain) {
+      showStatus('Please enter a specific domain where this rule should apply', 'error');
+      return;
     }
     
-    // Save rule regardless of permission result (it will work when permission is granted)
+    // Request permission for the domain
+    const permissionGranted = await requestDomainPermission(cleanDomain);
+    if (!permissionGranted) {
+      showStatus('Permission not granted for domain: ' + cleanDomain, 'error');
+      // You could return here to prevent saving, or continue to save the rule anyway
+      // return;
+    }
+    
+    // Save the rule with the domain
     saveInputSet(tagName, findText, replaceText, cleanDomain);
   });
   
