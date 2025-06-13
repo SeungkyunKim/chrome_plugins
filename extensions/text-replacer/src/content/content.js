@@ -1,31 +1,50 @@
-// Apply all saved replacements when page is fully loaded
-window.addEventListener('load', function() {
-  applyAllSavedReplacements();
-});
-
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'replaceText') {
     const result = performTextReplacement(message.tagName, message.findText, message.replaceText);
     sendResponse(result);
     return true;
+  } else if (message.action === 'applyAllRules') {
+    // Apply all relevant rules for this page
+    applyAllSavedReplacements()
+      .then(result => {
+        sendResponse({ 
+          success: true, 
+          count: result.count,
+          message: `Applied ${result.count} replacements`
+        });
+      })
+      .catch(error => {
+        sendResponse({ 
+          success: false, 
+          message: error.message || "Failed to apply rules" 
+        });
+      });
+    return true; // Indicates async response
   }
 });
 
-// Function to apply all saved replacements
+// Update to return a Promise
 function applyAllSavedReplacements() {
-  // Get current domain
-  const currentDomain = window.location.hostname;
-  
-  chrome.storage.local.get('savedSets', function(data) {
-    const savedSets = data.savedSets || [];
+  return new Promise((resolve) => {
+    const currentDomain = window.location.hostname;
+    let totalReplacements = 0;
     
-    // Filter sets to only those matching current domain or with no domain (for backward compatibility)
-    const matchingSets = savedSets.filter(set => !set.domain || set.domain === currentDomain);
-    
-    // Apply each matching set
-    matchingSets.forEach(function(set) {
-      performTextReplacement(set.tagName, set.findText, set.replaceText);
+    chrome.storage.local.get('savedSets', function(data) {
+      const savedSets = data.savedSets || [];
+      
+      // Filter sets to only those matching current domain or with no domain
+      const matchingSets = savedSets.filter(set => !set.domain || currentDomain.includes(set.domain));
+      
+      // Apply each matching set
+      matchingSets.forEach(function(set) {
+        const result = performTextReplacement(set.tagName, set.findText, set.replaceText);
+        if (result.success) {
+          totalReplacements += result.count;
+        }
+      });
+      
+      resolve({ count: totalReplacements });
     });
   });
 }

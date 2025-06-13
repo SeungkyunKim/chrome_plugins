@@ -12,7 +12,11 @@
   },
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html"
@@ -20,11 +24,5 @@
   "background": {
     "service_worker": "src/background.js"
   },
-  "options_page": "src/options/options.html",
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/content.js"]
-    }
-  ]
+  "options_page": "src/options/options.html"
 }

@@ -8,11 +8,12 @@ document.addEventListener('DOMContentLoaded', function() {
   loadSavedSets();
   
   // Handle save button click
-  saveBtn.addEventListener('click', function() {
+  saveBtn.addEventListener('click', async function() {
     const tagName = document.getElementById('tagName').value.trim();
     const findText = document.getElementById('findText').value;
     const replaceText = document.getElementById('replaceText').value;
-    const domain = document.getElementById('domain').value.trim();
+    const domainInput = document.getElementById('domain').value.trim();
+    const cleanDomain = extractDomain(domainInput);
     
     // Validate inputs
     if (!tagName) {
@@ -33,8 +34,13 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    // Save to Chrome storage
-    saveInputSet(tagName, findText, replaceText, domain);
+    // Request permission if domain specified
+    if (cleanDomain) {
+      await requestDomainPermission(cleanDomain);
+    }
+    
+    // Save rule regardless of permission result (it will work when permission is granted)
+    saveInputSet(tagName, findText, replaceText, cleanDomain);
   });
   
   // Function to save input set to Chrome storage
@@ -197,34 +203,72 @@ document.addEventListener('DOMContentLoaded', function() {
     return url.split('/')[0].split('?')[0].split('#')[0];
   }
   
-  // When saving the domain value (modify your existing save function)
-  document.getElementById('saveBtn').addEventListener('click', function() {
-    const tagName = document.getElementById('tagName').value.trim();
-    const findText = document.getElementById('findText').value;
-    const replaceText = document.getElementById('replaceText').value;
-    const domainInput = document.getElementById('domain').value.trim();
-    const cleanDomain = extractDomain(domainInput);
+  // Format domain input into a valid permission pattern
+  function formatOriginPattern(domain) {
+    if (!domain) return null;
     
-    // Validate inputs
-    if (!tagName) {
-      showStatus('Please enter a tag name', 'error');
-      return;
+    // Handle case where user entered a full URL
+    if (domain.includes('://')) {
+      try {
+        const url = new URL(domain);
+        return url.origin + '/*';
+      } catch (e) {
+        console.error("Invalid URL:", domain);
+        return null;
+      }
     }
     
-    if (!findText) {
-      showStatus('Please enter text to find', 'error');
-      return;
+    // Simple domain - add the pattern format
+    return `*://${domain}/*`;
+  }
+  
+  // Request permission for a domain and apply rules to existing open tabs if granted
+  async function requestDomainPermission(domain) {
+    if (!domain) return true; // No domain means apply to all permitted sites
+    
+    const originPattern = formatOriginPattern(domain);
+    if (!originPattern) {
+      showStatus(`Invalid domain format: ${domain}`, 'error');
+      return false;
     }
     
-    // Validate regex pattern
     try {
-      new RegExp(findText);
-    } catch (e) {
-      showStatus('Invalid regular expression in find text', 'error');
-      return;
+      const granted = await new Promise(resolve => {
+        chrome.permissions.request({ origins: [originPattern] }, (result) => {
+          if (chrome.runtime.lastError) {
+            console.error("Permission request error:", chrome.runtime.lastError);
+            resolve(false);
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      
+      if (granted) {
+        showStatus(`Permission granted for ${domain}`, 'success');
+        
+        // Apply rule immediately to any matching open tabs
+        chrome.tabs.query({ url: originPattern }, (tabs) => {
+          tabs.forEach((tab) => {
+            if (!tab.id) return;
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['src/content/content.js']
+            }).then(() => {
+              chrome.tabs.sendMessage(tab.id, { action: 'applyAllRules' })
+                .catch(e => console.log("Tab might not be ready yet:", e));
+            }).catch(e => console.log("Injection error:", e));
+          });
+        });
+        
+        return true;
+      } else {
+        showStatus(`Permission denied for ${domain}`, 'error');
+        return false;
+      }
+    } catch (error) {
+      showStatus(`Error requesting permission: ${error.message}`, 'error');
+      return false;
     }
-    
-    // Save to Chrome storage
-    saveInputSet(tagName, findText, replaceText, cleanDomain);
-  });
+  }
 });

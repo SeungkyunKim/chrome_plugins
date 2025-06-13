@@ -112,4 +112,36 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   }
+  
+  // Create an "Apply Rules" button
+  const applyRulesBtn = document.createElement('button');
+  applyRulesBtn.textContent = 'Apply Rules to This Page';
+  applyRulesBtn.className = 'apply-btn';
+  document.querySelector('.container').insertBefore(applyRulesBtn, document.querySelector('.footer'));
+  
+  // Add event listener
+  applyRulesBtn.addEventListener('click', function() {
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      if (tabs[0]) {
+        chrome.runtime.sendMessage({
+          action: "applyAllRules",
+          tabId: tabs[0].id
+        }, function(response) {
+          const statusDiv = document.createElement('div');
+          statusDiv.id = 'status';
+          if (response && response.success) {
+            statusDiv.textContent = response.message;
+            statusDiv.className = 'success';
+          } else {
+            statusDiv.textContent = response?.message || "Failed to apply rules";
+            statusDiv.className = 'error';
+          }
+          document.querySelector('.container').insertBefore(statusDiv, document.querySelector('.footer'));
+          setTimeout(() => {
+            if (statusDiv.parentNode) statusDiv.parentNode.removeChild(statusDiv);
+          }, 3000);
+        });
+      }
+    });
+  });
 });

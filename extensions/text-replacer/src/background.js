@@ -31,3 +31,115 @@ chrome.action.onClicked.addListener((tab, info) => {
   // We only get here if the popup failed to open (popup takes precedence)
   chrome.runtime.openOptionsPage();
 });
+
+// Listen for tab updates to inject content script when a permitted tab loads
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Only proceed if the tab is completely loaded and has a URL
+  if (changeInfo.status === 'complete' && tab.url && 
+      (tab.url.startsWith('http:') || tab.url.startsWith('https:'))) {
+    
+    const url = new URL(tab.url);
+    const currentDomain = url.hostname;
+    const currentOriginPattern = `*://${currentDomain}/*`;
+    
+    // First check if we have permission for this domain
+    chrome.permissions.contains({ origins: [currentOriginPattern] }, (granted) => {
+      if (granted) {
+        // Then check if we have any rules for this domain
+        chrome.storage.local.get('savedSets', (data) => {
+          const savedSets = data.savedSets || [];
+          const hasMatchingRule = savedSets.some(set => 
+            !set.domain || currentDomain.includes(set.domain));
+          
+          if (hasMatchingRule) {
+            // Inject content script
+            chrome.scripting.executeScript({
+              target: { tabId: tabId },
+              files: ['src/content/content.js']
+            }).then(() => {
+              // Send message to apply rules
+              chrome.tabs.sendMessage(tabId, { action: 'applyAllRules' })
+                .catch(err => console.log("Error applying rules:", err));
+            }).catch(err => console.log("Error injecting script:", err));
+          }
+        });
+      }
+    });
+  }
+});
+
+// Handle messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "replaceText") {
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      if (tabs[0]) {
+        // First check if content script is already injected,
+        // if not, inject it before sending message
+        chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          files: ['src/content/content.js']
+        }).then(() => {
+          // Now send the message
+          chrome.tabs.sendMessage(tabs[0].id, message)
+            .then(response => {
+              sendResponse(response);
+            })
+            .catch(error => {
+              sendResponse({
+                success: false,
+                message: "Failed to communicate with the page."
+              });
+            });
+        }).catch(error => {
+          sendResponse({
+            success: false,
+            message: "Failed to inject content script."
+          });
+        });
+      } else {
+        sendResponse({
+          success: false,
+          message: "No active tab found"
+        });
+      }
+    });
+    return true; // Keep the message channel open for async response
+  } else if (message.action === "applyAllRules" && message.tabId) {
+    // Handle popup's request to apply rules to a specific tab
+    chrome.scripting.executeScript({
+      target: { tabId: message.tabId },
+      files: ['src/content/content.js']
+    }).then(() => {
+      chrome.tabs.sendMessage(message.tabId, { action: 'applyAllRules' })
+        .then(response => sendResponse(response))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+    }).catch(error => {
+      sendResponse({ success: false, message: "Failed to inject content script." });
+    });
+    return true;
+  }
+});
+
+// Open options page when extension icon is clicked with Alt key
+chrome.action.onClicked.addListener((tab) => {
+  chrome.runtime.openOptionsPage();
+});
+
+// Listen for permission changes
+chrome.permissions.onAdded.addListener((permissions) => {
+  if (permissions.origins && permissions.origins.length > 0) {
+    // When new permissions are granted, apply rules to matching open tabs
+    permissions.origins.forEach(originPattern => {
+      chrome.tabs.query({ url: originPattern }, (tabs) => {
+        tabs.forEach((tab) => {
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['src/content/content.js']
+          }).then(() => {
+            chrome.tabs.sendMessage(tab.id, { action: 'applyAllRules' });
+          }).catch(e => console.log("Error injecting script after permission granted:", e));
+        });
+      });
+    });
+  }
+});
