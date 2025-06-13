@@ -121,6 +121,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, message: "Failed to inject content script." });
     });
     return true;
+  } else if (message.action === "allRulesDeleted") {
+    // Reload the options page if it's open
+    chrome.runtime.openOptionsPage();
+    return true;
   }
 });
 

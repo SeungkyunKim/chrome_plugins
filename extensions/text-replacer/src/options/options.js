@@ -280,4 +280,15 @@ document.addEventListener('DOMContentLoaded', function() {
       return false;
     }
   }
+  
+  // Add a listener to handle storage changes
+  chrome.storage.onChanged.addListener(function(changes, namespace) {
+    if (namespace === 'local' && changes.savedSets) {
+      // If the savedSets array is now empty, reload the page
+      if (changes.savedSets.newValue && changes.savedSets.newValue.length === 0) {
+        // Reload the options page
+        window.location.reload();
+      }
+    }
+  });
 });
