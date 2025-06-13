@@ -108,19 +108,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     });
     return true; // Keep the message channel open for async response
-  } else if (message.action === "applyAllRules" && message.tabId) {
-    // Handle popup's request to apply rules to a specific tab
-    chrome.scripting.executeScript({
-      target: { tabId: message.tabId },
-      files: ['src/content/content.js']
-    }).then(() => {
-      chrome.tabs.sendMessage(message.tabId, { action: 'applyAllRules' })
-        .then(response => sendResponse(response))
-        .catch(error => sendResponse({ success: false, error: error.message }));
-    }).catch(error => {
-      sendResponse({ success: false, message: "Failed to inject content script." });
-    });
-    return true;
   } else if (message.action === "allRulesDeleted") {
     // Reload the options page if it's open
     chrome.runtime.openOptionsPage();

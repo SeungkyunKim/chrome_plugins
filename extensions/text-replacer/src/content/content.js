@@ -5,22 +5,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse(result);
     return true;
   } else if (message.action === 'applyAllRules') {
-    // Apply all relevant rules for this page
+    // This is still needed for automatic rule application
+    // via onUpdated and permissions.onAdded events
     applyAllSavedReplacements()
-      .then(result => {
-        sendResponse({ 
-          success: true, 
-          count: result.count,
-          message: `Applied ${result.count} replacements`
-        });
+      .then(summary => {
+        sendResponse({ success: true, ...summary });
       })
       .catch(error => {
-        sendResponse({ 
-          success: false, 
-          message: error.message || "Failed to apply rules" 
-        });
+        console.error("Text Replacer: Error applying all rules:", error);
+        sendResponse({ success: false, message: error.message || "Failed to apply all rules." });
       });
-    return true; // Indicates async response
+    return true;
   }
 });
 
