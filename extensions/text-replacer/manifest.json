@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Text Replacer",
+  "version": "1.0",
+  "description": "A Chrome extension to replace text within specific HTML tags on the current page.",
+  "icons": {
+    "128": "icons/128.png",
+    "256": "icons/256.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "64": "icons/64.png"
+  },
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content.js"]
+    }
+  ]
+}

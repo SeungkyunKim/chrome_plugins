@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Text Replacer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Text Replacer</h2>
+    
+    <div id="savedSetsSection" style="display: none;">
+      <h3>Active Replacement Sets</h3>
+      <div class="table-container">
+        <table id="savedSetsTable">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Tag</th>
+              <th>Find</th>
+              <th>Replace</th>
+              <th>Domain</th>
+            </tr>
+          </thead>
+          <tbody id="savedSetsBody">
+            <!-- Saved sets will be displayed here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div id="noSetsMessage" style="display: none; text-align: center; margin: 20px 0;">
+      No replacement sets configured for this domain.
+    </div>
+    
+    <div class="footer">
+      <a href="#" id="openSettings">Manage Replacement Sets</a>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
