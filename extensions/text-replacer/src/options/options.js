@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (savedSetsSection) savedSetsSection.style.display = 'block';
         if (noSetsMessage) noSetsMessage.style.display = 'none';
         
-        savedSets.forEach(set => {
+        savedSets.forEach((set, index) => {
           const row = document.createElement('tr');
           // Add disabled class if rule is disabled
           if (set.enabled === false) {
@@ -69,17 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
           switchLabel.appendChild(sliderSpan);
           statusCell.appendChild(switchLabel);
           
-          // Action column (delete button)
-          const actionCell = document.createElement('td');
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = 'Delete';
-          deleteBtn.className = 'delete-btn';
-          deleteBtn.addEventListener('click', function() {
-            deleteSet(set.id);
-          });
-          actionCell.appendChild(deleteBtn);
-          
-          // Other data cells
+          // Data cells
           const tagCell = document.createElement('td');
           tagCell.textContent = set.tagName;
           
@@ -92,13 +82,51 @@ document.addEventListener('DOMContentLoaded', function() {
           const domainCell = document.createElement('td');
           domainCell.textContent = set.domain || '';
           
-          // Append all cells to row
+          // Order column with up/down buttons
+          const orderCell = document.createElement('td');
+          const orderButtonsDiv = document.createElement('div');
+          orderButtonsDiv.className = 'order-buttons';
+          
+          // Up button
+          const upButton = document.createElement('button');
+          upButton.className = 'order-btn order-btn-up';
+          upButton.title = 'Move rule up';
+          upButton.disabled = index === 0; // Disable if it's the first rule
+          upButton.addEventListener('click', function() {
+            moveRule(index, 'up');
+          });
+          
+          // Down button
+          const downButton = document.createElement('button');
+          downButton.className = 'order-btn order-btn-down';
+          downButton.title = 'Move rule down';
+          downButton.disabled = index === savedSets.length - 1; // Disable if it's the last rule
+          downButton.addEventListener('click', function() {
+            moveRule(index, 'down');
+          });
+          
+          orderButtonsDiv.appendChild(upButton);
+          orderButtonsDiv.appendChild(downButton);
+          orderCell.appendChild(orderButtonsDiv);
+          
+          // Action column (delete button)
+          const actionCell = document.createElement('td');
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.addEventListener('click', function() {
+            deleteSet(set.id);
+          });
+          actionCell.appendChild(deleteBtn);
+          
+          // Append all cells to row in the new order
           row.appendChild(statusCell);
-          row.appendChild(actionCell);
           row.appendChild(tagCell);
           row.appendChild(findCell);
           row.appendChild(replaceCell);
           row.appendChild(domainCell);
+          row.appendChild(orderCell);  // Order column moved to the end
+          row.appendChild(actionCell); // Action column moved to the end
           
           savedSetsBody.appendChild(row);
         });
@@ -223,20 +251,20 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Function to show status message
   function showStatus(message, type) {
+    const statusDiv = document.getElementById('status');
     if (!statusDiv) {
       console.error("Status div not found");
       return;
     }
     
+    // Set the message and type
     statusDiv.textContent = message;
-    statusDiv.className = type;
+    statusDiv.className = `status-bar ${type}`;
     
-    // Clear status after 3 seconds
+    // Clear the message after 3 seconds
     setTimeout(() => {
-      if (statusDiv) {
-        statusDiv.textContent = '';
-        statusDiv.className = '';
-      }
+      statusDiv.textContent = '';
+      statusDiv.className = 'status-bar';
     }, 3000);
   }
   
@@ -346,4 +374,46 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+  
+  // Add a function to move rules up or down
+  function moveRule(index, direction) {
+    chrome.storage.local.get('savedSets', data => {
+      const savedSets = data.savedSets || [];
+      
+      // Determine target index
+      const newIndex = direction === 'up' ? index - 1 : index + 1;
+      
+      // Validate indexes are in bounds
+      if (newIndex < 0 || newIndex >= savedSets.length) {
+        return; // Out of bounds, do nothing
+      }
+      
+      // Swap the rules
+      const temp = savedSets[index];
+      savedSets[index] = savedSets[newIndex];
+      savedSets[newIndex] = temp;
+      
+      // Save the updated array
+      chrome.storage.local.set({ savedSets }, () => {
+        loadSavedSets(); // Refresh UI to show new order
+        
+        // Show a status message
+        showStatus(`Rule moved ${direction}`, 'success');
+        
+        // If the rules are for the same domain, reload any tabs with that domain
+        // to ensure rules are applied in the new order
+        const domain = savedSets[index].domain;
+        if (domain) {
+          const originPattern = `*://${domain}/*`;
+          chrome.tabs.query({ url: originPattern }, tabs => {
+            tabs.forEach(tab => {
+              if (tab.id) {
+                chrome.tabs.reload(tab.id);
+              }
+            });
+          });
+        }
+      });
+    });
+  }
 });

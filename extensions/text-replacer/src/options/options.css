@@ -63,11 +63,36 @@ button:hover {
   background-color: #357ae8;
 }
 
+/* Status bar styles */
 #status {
-  margin-top: 10px;
-  padding: 5px;
+  height: 40px; /* Fixed height to preserve space */
+  margin-bottom: 20px; /* Space below the status bar */
+  padding: 10px;
   text-align: center;
   border-radius: 4px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden; /* Hide when no message is present */
+  opacity: 0; /* Smooth transition when showing/hiding */
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#status.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  visibility: visible; /* Show when a message is present */
+  opacity: 1;
+}
+
+#status.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  visibility: visible; /* Show when a message is present */
+  opacity: 1;
 }
 
 .status-message {
@@ -204,4 +229,78 @@ input:checked + .slider:before {
 #savedSetsTable td:first-child {
   width: 80px;
   text-align: center;
+}
+
+/* Styles for rule ordering buttons */
+.order-buttons {
+  display: flex;
+  gap: 2px;
+  align-items: center; /* Center buttons horizontally */
+}
+
+.order-btn {
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  color: #333;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 5px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-btn:hover {
+  background-color: #c0c0c0;
+}
+
+.order-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  background-color: #e0e0e0;
+}
+
+.order-btn-up::after {
+  content: "\2B06"; /* Up arrow */
+}
+
+.order-btn-down::after {
+  content: "\2B07"; /* Down arrow */
+}
+
+/* Make the order column narrower */
+#savedSetsTable th:nth-child(2),
+#savedSetsTable td:nth-child(2) {
+  width: 30px;
+}
+
+/* Style for the horizontal line */
+.section-divider {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 20px 0; /* Add spacing above and below the line */
+}
+
+/* Style for the save button */
+.primary-btn {
+  display: block; /* Make the button a block element */
+  width: 100%; /* Set the width to 100% of its container */
+  max-width: 600px; /* Optional: Limit the maximum width */
+  margin: 0 auto; /* Center the button horizontally */
+  padding: 10px 20px; /* Add padding for better appearance */
+  font-size: 16px; /* Increase font size */
+  font-weight: bold; /* Make the text bold */
+  background-color: #4CAF50; /* Green background */
+  color: white; /* White text */
+  border: none; /* Remove border */
+  border-radius: 4px; /* Add rounded corners */
+  cursor: pointer; /* Change cursor to pointer */
+  transition: background-color 0.3s ease; /* Smooth hover effect */
+}
+
+.primary-btn:hover {
+  background-color: #45a049; /* Darker green on hover */
 }

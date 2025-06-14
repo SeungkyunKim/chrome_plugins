@@ -7,7 +7,10 @@
 <body>
   <div class="container">
     <h1>Text Replacer Settings</h1>
-    
+
+    <!-- Status bar moved here -->
+    <div id="status" class="status-bar"></div>
+
     <div class="form-section">
       <h2>Add New Replacement</h2>
       <div class="form-group">
@@ -31,11 +34,13 @@
         <small class="helper-text">Domain name where this rule should apply</small>
       </div>
       
+      <!-- Save button -->
       <button id="saveBtn" class="primary-btn">Save</button>
     </div>
-    
-    <div id="status"></div>
-    
+
+    <!-- Add a horizontal line -->
+    <hr class="section-divider">
+
     <div id="savedSetsSection">
       <h2>Saved Replacement Sets</h2>
       <div class="table-container">
@@ -43,11 +48,12 @@
           <thead>
             <tr>
               <th>Status</th>
-              <th>Action</th>
               <th>Tag</th>
               <th>Find</th>
               <th>Replace</th>
               <th>Domain</th>
+              <th>Order</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="savedSetsBody"></tbody>

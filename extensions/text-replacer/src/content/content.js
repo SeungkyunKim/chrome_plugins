@@ -35,13 +35,13 @@ function applyAllSavedReplacements() {
         set.enabled !== false  // Only apply enabled rules
       );
       
-      // Apply each matching set
-      matchingSets.forEach(function(set) {
+      // Apply each matching set IN ORDER (important!)
+      for (const set of matchingSets) {
         const result = performTextReplacement(set.tagName, set.findText, set.replaceText);
         if (result.success) {
           totalReplacements += result.count;
         }
-      });
+      }
       
       resolve({ 
         count: totalReplacements,
