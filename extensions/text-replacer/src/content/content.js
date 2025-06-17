@@ -55,44 +55,52 @@ function applyAllSavedReplacements() {
 function performTextReplacement(tagName, findText, replaceText) {
   try {
     let replacementCount = 0;
-    
+
     // Check if tag input contains a property specification (tagName;propertyName)
     if (tagName.includes(';')) {
       const [actualTagName, propertyName] = tagName.split(';');
-      
+
       // Get all elements with the specified tag name
       const elements = document.getElementsByTagName(actualTagName);
-      
+
       // Loop through all matching elements
       for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
-        
+
         // Check if the element has the specified property
         if (element.hasAttribute(propertyName)) {
           const propertyValue = element.getAttribute(propertyName);
-          
+
           try {
             // Always treat as regex first
             const regexPattern = new RegExp(findText, 'g');
-            
+
             // Check if there's a match
             if (regexPattern.test(propertyValue)) {
               // Reset lastIndex property
               regexPattern.lastIndex = 0;
-              
+
               // Replace using regex
               const newValue = propertyValue.replace(regexPattern, replaceText);
               element.setAttribute(propertyName, newValue);
               replacementCount++;
+
+              // Force re-render of tooltip
+              element.removeAttribute(propertyName); // Temporarily remove the attribute
+              element.setAttribute(propertyName, newValue); // Re-add the updated attribute
             }
           } catch (regexError) {
             console.log("Treating as plain text due to invalid regex:", regexError);
-            
+
             // Fallback to plain text if regex is invalid
             if (propertyValue.includes(findText)) {
               const newValue = propertyValue.split(findText).join(replaceText);
               element.setAttribute(propertyName, newValue);
               replacementCount++;
+
+              // Force re-render of tooltip
+              element.removeAttribute(propertyName); // Temporarily remove the attribute
+              element.setAttribute(propertyName, newValue); // Re-add the updated attribute
             }
           }
         }
